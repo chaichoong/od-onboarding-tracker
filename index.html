@@ -88,7 +88,7 @@ input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0
 /* ===== Main content ===== */
 .main { margin-left: 220px; padding: 0; min-height: 100vh; }
 .page { padding: 24px 32px; max-width: 1500px; }
-.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:20px; }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:20px; flex-wrap:wrap; }
 .page-title { font-size:24px; font-weight:700; letter-spacing:-.4px; color:#1e293b; }
 .page-sub { color:#64748b; font-size:13px; margin-top:4px; }
 
@@ -224,6 +224,12 @@ input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0
 .tl-item { display:flex; gap:14px; padding:11px 0; border-bottom:1px solid #f1f5f9; }
 .tl-item:last-child { border-bottom:none; }
 .tl-dot { width:8px; height:8px; border-radius:50%; background:#2563eb; margin-top:7px; flex-shrink:0; }
+.tl-dot.transition { background:#2563eb; }
+.tl-dot.telemetry { background:#0891b2; }
+.tl-dot.touchpoint { background:#a855f7; }
+.tl-dot.tutorial { background:#16a34a; }
+.tl-dot.note { background:#64748b; }
+.tl-dot.mar { background:#dc2626; }
 .tl-content { flex:1; font-size:13px; }
 .tl-meta { color:#64748b; font-size:11px; margin-top:3px; }
 
@@ -328,20 +334,15 @@ input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0
 
 <script>
 // ===========================================================================
-// CONFIG
+// CONFIG — 6-table schema
 // ===========================================================================
 const TABLES = {
-  customers: 'Customers',
-  journeys: 'Journeys',
-  stageTransitions: 'Stage Transitions',
-  telemetry: 'Telemetry Events',
-  touchpoints: 'Touchpoint Deliveries',
-  marRules: 'MAR Rules',
-  marFlags: 'MAR Flags',
+  clients:       'Clients',
+  activityLog:   'Activity Log',
+  marFlags:      'MAR Flags',
+  marRules:      'MAR Rules',
   heroWorkflows: 'Hero Workflows',
-  activationEvents: 'Activation Event Definitions',
-  tutorialProgress: 'Tutorial Progress',
-  teamMembers: 'Team Members'
+  teamMembers:   'Team Members'
 };
 
 const STAGES = [
@@ -355,11 +356,13 @@ const STAGE_CHIP = {
   expansion:'teal', activated:'green', failed:'red', refunded:'gray'
 };
 
+const ACTIVE_JOURNEY_STATUSES = ['in_progress','at_risk'];
+
 const STORE = {
   pat:   'od_at_key',
   base:  'od_at_base',
   page:  'od_current_page',
-  cust:  'od_current_customer'
+  client:'od_current_client'
 };
 
 const SEVERITY_ORDER = { critical:0, high:1, medium:2, low:3 };
@@ -384,6 +387,7 @@ function fmtDate(d){ if(!d) return '—'; const t = new Date(d); if(isNaN(t)) re
 function fmtDateTime(d){ if(!d) return '—'; const t = new Date(d); if(isNaN(t)) return '—'; return t.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
 function daysBetween(a, b){ if(!a) return 0; const ms = (b ? new Date(b) : new Date()) - new Date(a); return Math.max(0, Math.floor(ms / 86400000)); }
 function healthBucket(s){ if(s == null) return 'health-warn'; if(s >= 75) return 'health-ok'; if(s >= 50) return 'health-warn'; return 'health-bad'; }
+function firstOrSelf(v){ return Array.isArray(v) ? v[0] : v; }
 
 // ===========================================================================
 // AIRTABLE CLIENT
@@ -425,10 +429,6 @@ async function listAll(tableName, params = '') {
   return out;
 }
 
-async function getRecord(tableName, id) {
-  return atFetch('/' + encodeURIComponent(tableName) + '/' + id);
-}
-
 async function updateRecord(tableName, id, fields) {
   return atFetch('/' + encodeURIComponent(tableName) + '/' + id, {
     method: 'PATCH',
@@ -447,17 +447,14 @@ async function createRecord(tableName, fields) {
 // STATE
 // ===========================================================================
 const state = {
-  customers: [],
-  journeys: [],
+  clients: [],
   marFlags: [],
   marRules: [],
   byId: {
-    customers: {},
-    journeys: {},
+    clients: {},
     teamMembers: {},
     heroWorkflows: {}
   },
-  loading: false,
   filters: {
     stage: '',
     healthMin: '',
@@ -468,22 +465,18 @@ const state = {
 
 async function loadAll() {
   setStatus('loading','Loading…');
-  state.loading = true;
   try {
-    const [customers, journeys, marFlags, marRules, team, heroWfs] = await Promise.all([
-      listAll(TABLES.customers),
-      listAll(TABLES.journeys),
+    const [clients, marFlags, marRules, team, heroWfs] = await Promise.all([
+      listAll(TABLES.clients),
       listAll(TABLES.marFlags, 'filterByFormula=' + encodeURIComponent('{Resolved At} = BLANK()')),
       listAll(TABLES.marRules),
       listAll(TABLES.teamMembers),
       listAll(TABLES.heroWorkflows)
     ]);
-    state.customers = customers;
-    state.journeys = journeys;
+    state.clients  = clients;
     state.marFlags = marFlags;
     state.marRules = marRules;
-    state.byId.customers     = Object.fromEntries(customers.map(r => [r.id, r]));
-    state.byId.journeys      = Object.fromEntries(journeys.map(r => [r.id, r]));
+    state.byId.clients       = Object.fromEntries(clients.map(r => [r.id, r]));
     state.byId.teamMembers   = Object.fromEntries(team.map(r => [r.id, r]));
     state.byId.heroWorkflows = Object.fromEntries(heroWfs.map(r => [r.id, r]));
     setStatus('ok','Live');
@@ -491,8 +484,6 @@ async function loadAll() {
   } catch (e) {
     setStatus('err','Error: ' + e.message);
     throw e;
-  } finally {
-    state.loading = false;
   }
 }
 
@@ -520,9 +511,9 @@ async function goto(page, ctx) {
   const c = $('page-container');
   c.innerHTML = '<div class="page"><div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Loading…</div></div></div>';
   try {
-    if (page === 'dashboard')   await renderDashboard(c);
-    else if (page === 'mar')    await renderMarTriage(c);
-    else if (page === 'detail') await renderCustomerDetail(c, ctx);
+    if (page === 'dashboard')     await renderDashboard(c);
+    else if (page === 'mar')      await renderMarTriage(c);
+    else if (page === 'detail')   await renderClientDetail(c, ctx);
     else if (page === 'settings') await renderSettings(c);
     else await renderDashboard(c);
   } catch(e){
@@ -531,39 +522,36 @@ async function goto(page, ctx) {
 }
 
 // ===========================================================================
-// PAGE: DASHBOARD
+// PAGE: DASHBOARD (Cohort)
 // ===========================================================================
 async function renderDashboard(container) {
   const f = state.filters;
-  let rows = state.journeys.filter(j => {
-    const stage = j.fields['Current Stage'];
-    const status = j.fields['Status'];
-    if (!['in_progress','at_risk'].includes(status || 'in_progress')) return false;
-    if (f.stage && stage !== f.stage) return false;
-    if (f.healthMin && (Number(j.fields['Health Score'] || 0) < Number(f.healthMin))) return false;
-    if (f.hasMar === 'yes' && !(Number(j.fields['Open MAR Count'] || 0) > 0)) return false;
-    if (f.hasMar === 'no'  &&  (Number(j.fields['Open MAR Count'] || 0) > 0)) return false;
+  let rows = state.clients.filter(c => {
+    const fld = c.fields || {};
+    if (!ACTIVE_JOURNEY_STATUSES.includes(fld['Journey Status'] || 'in_progress')) return false;
+    if (f.stage && fld['Current Stage'] !== f.stage) return false;
+    if (f.healthMin && (Number(fld['Health Score'] || 0) < Number(f.healthMin))) return false;
+    if (f.hasMar === 'yes' && !(Number(fld['Open MAR Count'] || 0) > 0)) return false;
+    if (f.hasMar === 'no'  &&  (Number(fld['Open MAR Count'] || 0) > 0)) return false;
     if (f.query) {
-      const custId = (j.fields['Customer'] || [])[0];
-      const cust = state.byId.customers[custId];
       const q = f.query.toLowerCase();
-      const hay = ((cust?.fields?.Name || '') + ' ' + (cust?.fields?.Company || '') + ' ' + (cust?.fields?.Email || '')).toLowerCase();
+      const hay = ((fld.Name || '') + ' ' + (fld.Company || '') + ' ' + (fld.Email || '')).toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   });
 
   rows.sort((a,b) => {
-    const sa = SEVERITY_ORDER[(a.fields['Status'] === 'at_risk' ? 'high' : 'medium')];
-    const sb = SEVERITY_ORDER[(b.fields['Status'] === 'at_risk' ? 'high' : 'medium')];
+    const sa = (a.fields['Journey Status'] === 'at_risk') ? 0 : 1;
+    const sb = (b.fields['Journey Status'] === 'at_risk') ? 0 : 1;
     if (sa !== sb) return sa - sb;
-    return new Date(a.fields['Started At'] || 0) - new Date(b.fields['Started At'] || 0);
+    return new Date(a.fields['Signup At'] || 0) - new Date(b.fields['Signup At'] || 0);
   });
 
-  const totalActive  = state.journeys.filter(j => ['in_progress','at_risk'].includes(j.fields['Status'] || 'in_progress')).length;
-  const atRiskCount  = state.journeys.filter(j => j.fields['Status'] === 'at_risk').length;
-  const activatedThisMonth = state.journeys.filter(j => {
-    const a = j.fields['Activated At'] || (state.byId.customers[(j.fields['Customer']||[])[0]]?.fields?.['Activated At']);
+  const totalActive  = state.clients.filter(c => ACTIVE_JOURNEY_STATUSES.includes(c.fields['Journey Status'] || 'in_progress')).length;
+  const atRiskCount  = state.clients.filter(c => c.fields['Journey Status'] === 'at_risk').length;
+  const activatedThisMonth = state.clients.filter(c => {
+    const a = c.fields['Activated At'];
     if (!a) return false;
     const d = new Date(a);
     const now = new Date();
@@ -629,22 +617,21 @@ async function renderDashboard(container) {
               <th>Plan</th>
             </tr></thead>
             <tbody>
-            ${rows.map(j => {
-              const custId = (j.fields['Customer'] || [])[0];
-              const cust = state.byId.customers[custId];
-              const stage = j.fields['Current Stage'] || 'signup';
-              const startedAt = j.fields['Started At'];
-              const targetAt = j.fields['Target First Win At'];
-              const daysInStage = Number(j.fields['Days In Current Stage'] || 0);
-              const daysSinceSignup = daysBetween(startedAt);
-              const health = j.fields['Health Score'];
-              const openMar = Number(j.fields['Open MAR Count'] || 0);
-              const tier = cust?.fields?.['Plan Tier'] || '—';
+            ${rows.map(c => {
+              const fld = c.fields || {};
+              const stage = fld['Current Stage'] || 'signup';
+              const signupAt = fld['Signup At'];
+              const targetAt = fld['Target First Win At'];
+              const daysInStage = Number(fld['Days In Current Stage'] || 0);
+              const daysSinceSignup = daysBetween(signupAt);
+              const health = fld['Health Score'];
+              const openMar = Number(fld['Open MAR Count'] || 0);
+              const tier = fld['Plan Tier'] || '—';
               return `
-                <tr data-journey="${j.id}" data-customer="${esc(custId || '')}">
+                <tr data-client="${esc(c.id)}">
                   <td>
-                    <div style="font-weight:600;color:#1e293b">${esc(cust?.fields?.Name || cust?.fields?.Company || '(no name)')}</div>
-                    <div style="color:#64748b;font-size:12px">${esc(cust?.fields?.Email || '')}</div>
+                    <div style="font-weight:600;color:#1e293b">${esc(fld.Name || fld.Company || '(no name)')}</div>
+                    <div style="color:#64748b;font-size:12px">${esc(fld.Email || '')}</div>
                   </td>
                   <td><span class="chip chip-${STAGE_CHIP[stage] || 'gray'}">${esc(stage)}</span></td>
                   <td>${daysInStage}</td>
@@ -663,7 +650,6 @@ async function renderDashboard(container) {
     </div>
   `;
 
-  // wire filters
   const onChange = () => {
     state.filters.query = $('f-query').value;
     state.filters.stage = $('f-stage').value;
@@ -678,54 +664,69 @@ async function renderDashboard(container) {
   $('f-reset').addEventListener('click',  () => { state.filters = {stage:'',healthMin:'',hasMar:'',query:''}; renderDashboard(container); });
   $('f-reload').addEventListener('click', async () => { await loadAll(); renderDashboard(container); });
 
-  container.querySelectorAll('tr[data-journey]').forEach(r => {
+  container.querySelectorAll('tr[data-client]').forEach(r => {
     r.addEventListener('click', () => {
-      const cId = r.getAttribute('data-customer');
-      localStorage.setItem(STORE.cust, cId);
-      goto('detail', { customerId: cId });
+      const cId = r.getAttribute('data-client');
+      localStorage.setItem(STORE.client, cId);
+      goto('detail', { clientId: cId });
     });
   });
 }
 
 // ===========================================================================
-// PAGE: CUSTOMER DETAIL
+// PAGE: CLIENT DETAIL
 // ===========================================================================
-async function renderCustomerDetail(container, ctx) {
-  const customerId = ctx?.customerId || localStorage.getItem(STORE.cust);
-  const cust = state.byId.customers[customerId];
-  if (!cust) {
+async function renderClientDetail(container, ctx) {
+  const clientId = ctx?.clientId || localStorage.getItem(STORE.client);
+  const client = state.byId.clients[clientId];
+  if (!client) {
     container.innerHTML = '<div class="page"><div class="empty"><div class="empty-icon">∅</div><div class="empty-title">Client not found</div></div></div>';
     return;
   }
-  const journey = state.journeys.find(j => (j.fields['Customer'] || [])[0] === customerId);
-  if (!journey) {
-    container.innerHTML = `
-      <div class="page">
-        <button class="btn btn-secondary btn-sm" onclick="goto('dashboard')">← Cohort</button>
-        <h1 class="page-title" style="margin-top:14px">${esc(cust.fields.Name || cust.fields.Company || 'Client')}</h1>
-        <div class="page-sub">No active journey. Create one in Airtable to start tracking.</div>
-      </div>
-    `;
-    return;
-  }
+  const fld = client.fields || {};
 
   setStatus('loading','Loading detail…');
-  const [transitions, flagsAll] = await Promise.all([
-    listAll(TABLES.stageTransitions, 'filterByFormula=' + encodeURIComponent("FIND('" + journey.id + "', ARRAYJOIN({Journey}))")).catch(() => []),
-    listAll(TABLES.marFlags,         'filterByFormula=' + encodeURIComponent("FIND('" + journey.id + "', ARRAYJOIN({Journey}))")).catch(() => [])
+  const [activity, flagsAll] = await Promise.all([
+    listAll(TABLES.activityLog, 'filterByFormula=' + encodeURIComponent("FIND('" + client.id + "', ARRAYJOIN({Client}))") + '&sort%5B0%5D%5Bfield%5D=Occurred%20At&sort%5B0%5D%5Bdirection%5D=desc').catch(() => []),
+    listAll(TABLES.marFlags,    'filterByFormula=' + encodeURIComponent("FIND('" + client.id + "', ARRAYJOIN({Client}))")).catch(() => [])
   ]);
   setStatus('ok','Live');
 
-  const stage = journey.fields['Current Stage'] || 'signup';
-  const health = journey.fields['Health Score'];
-  const startedAt = journey.fields['Started At'];
-  const targetAt = journey.fields['Target First Win At'];
+  const stage = fld['Current Stage'] || 'signup';
+  const health = fld['Health Score'];
+  const signupAt = fld['Signup At'];
+  const targetAt = fld['Target First Win At'];
   const openFlags = flagsAll.filter(f => !f.fields['Resolved At']);
   const closedFlags = flagsAll.filter(f =>  f.fields['Resolved At']);
 
-  transitions.sort((a,b) => new Date(b.fields['Transitioned At'] || 0) - new Date(a.fields['Transitioned At'] || 0));
-
   const stageOpts = STAGES.map(s => '<option value="' + s + '"' + (stage === s ? ' selected' : '') + '>' + s + '</option>').join('');
+
+  const renderActivity = (a) => {
+    const af = a.fields || {};
+    const t = af.Type || 'note';
+    let title = af.Description || '';
+    if (!title) {
+      if (t === 'stage_transition') title = (af['From Stage'] || '—') + ' → ' + (af['To Stage'] || '—');
+      else if (t === 'telemetry')   title = af['Event Name'] || 'telemetry';
+      else if (t === 'touchpoint')  title = (af['Channel'] || 'channel') + ': ' + (af['Template Slug'] || af['Touchpoint Status'] || '');
+      else if (t === 'tutorial')    title = 'Tutorial · ' + (af['Asset Slug'] || '');
+      else title = t;
+    }
+    const meta = [fmtDateTime(af['Occurred At'])];
+    if (af['Trigger Kind']) meta.push(af['Trigger Kind']);
+    if (af['Actor']) meta.push(af['Actor']);
+    if (af['Touchpoint Status']) meta.push(af['Touchpoint Status']);
+    return `
+      <div class="tl-item">
+        <div class="tl-dot ${t === 'stage_transition' ? 'transition' : t}"></div>
+        <div class="tl-content">
+          <strong>${esc(title)}</strong>
+          <div class="tl-meta">${meta.map(esc).join(' · ')}</div>
+          ${af['Trigger Detail'] ? `<div class="tl-meta">${esc(af['Trigger Detail'])}</div>` : ''}
+        </div>
+      </div>
+    `;
+  };
 
   container.innerHTML = `
     <div class="page">
@@ -733,14 +734,14 @@ async function renderCustomerDetail(container, ctx) {
 
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:14px 0 20px;flex-wrap:wrap">
         <div>
-          <h1 class="page-title">${esc(cust.fields.Name || cust.fields.Company || 'Client')}</h1>
+          <h1 class="page-title">${esc(fld.Name || fld.Company || 'Client')}</h1>
           <div class="page-sub">
-            ${esc(cust.fields.Company || '')} · ${esc(cust.fields.Email || '')} · Plan: <strong>${esc(cust.fields['Plan Tier'] || '—')}</strong>
+            ${esc(fld.Company || '')} · ${esc(fld.Email || '')} · Plan: <strong>${esc(fld['Plan Tier'] || '—')}</strong>
           </div>
         </div>
         <div class="stat-row">
           <div class="stat-tile" style="min-width:100px"><div class="lbl">Stage</div><div style="margin-top:6px"><span class="chip chip-${STAGE_CHIP[stage] || 'gray'}">${esc(stage)}</span></div></div>
-          <div class="stat-tile"><div class="lbl">Days</div><div class="val">${daysBetween(startedAt)}</div></div>
+          <div class="stat-tile"><div class="lbl">Days</div><div class="val">${daysBetween(signupAt)}</div></div>
           <div class="stat-tile"><div class="lbl">Health</div><div style="margin-top:6px">${health != null ? `<span class="health-chip ${healthBucket(health)}">${Math.round(health)}</span>` : '—'}</div></div>
           <div class="stat-tile" style="min-width:120px"><div class="lbl">Target First Win</div><div style="font-size:13px;font-weight:600;margin-top:6px">${fmtDate(targetAt)}</div></div>
         </div>
@@ -749,28 +750,20 @@ async function renderCustomerDetail(container, ctx) {
       <div class="detail-grid">
         <div>
           <div class="card">
-            <div class="card-title">Timeline</div>
-            ${transitions.length === 0 ? `<div style="color:#64748b;font-size:13px">No stage transitions yet.</div>` : transitions.map(t => `
-              <div class="tl-item">
-                <div class="tl-dot"></div>
-                <div class="tl-content">
-                  <strong>${esc(t.fields['From Stage'] || '—')}</strong> → <strong>${esc(t.fields['To Stage'] || '—')}</strong>
-                  <div class="tl-meta">${fmtDateTime(t.fields['Transitioned At'])} · ${esc(t.fields['Trigger Kind'] || 'system')}${t.fields['Actor'] ? ' · ' + esc(t.fields['Actor']) : ''}</div>
-                  ${t.fields['Trigger Detail'] ? `<div class="tl-meta">${esc(t.fields['Trigger Detail'])}</div>` : ''}
-                </div>
-              </div>
-            `).join('')}
+            <div class="card-title">Activity Timeline</div>
+            ${activity.length === 0 ? `<div style="color:#64748b;font-size:13px">No activity yet.</div>` : activity.slice(0, 40).map(renderActivity).join('')}
+            ${activity.length > 40 ? `<div style="color:#64748b;font-size:12px;margin-top:10px">Showing 40 of ${activity.length} activities. Older items live in Airtable.</div>` : ''}
           </div>
 
           <div class="card">
             <div class="card-title">Open MAR Flags (${openFlags.length})</div>
             ${openFlags.length === 0 ? `<div style="color:#64748b;font-size:13px">No open flags.</div>` : openFlags.map(f => {
-              const sev = (f.fields['Severity'] || [''])[0];
+              const sev = firstOrSelf(f.fields['Severity']);
               const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
               return `
               <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0;border-bottom:1px solid #f1f5f9;gap:12px">
                 <div style="flex:1">
-                  <div style="font-weight:600">${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</div>
+                  <div style="font-weight:600">${esc(firstOrSelf(f.fields['Rule Slug']) || '(rule)')}</div>
                   <div style="color:#64748b;font-size:12px;margin-top:3px">
                     Triggered ${fmtDateTime(f.fields['Triggered At'])} · <span class="chip chip-${sevChip}">${esc(sev || '—')}</span>
                   </div>
@@ -785,7 +778,7 @@ async function renderCustomerDetail(container, ctx) {
             <div class="card-title">Resolved MAR Flags (${closedFlags.length})</div>
             ${closedFlags.slice(0, 8).map(f => `
               <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
-                <div>${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</div>
+                <div>${esc(firstOrSelf(f.fields['Rule Slug']) || '(rule)')}</div>
                 <div style="color:#64748b;font-size:12px">Resolved ${fmtDateTime(f.fields['Resolved At'])}</div>
               </div>
             `).join('')}
@@ -805,20 +798,33 @@ async function renderCustomerDetail(container, ctx) {
             </div>
             <button class="btn btn-primary" id="stage-go" style="width:100%;justify-content:center">Apply stage change</button>
             <div style="height:10px"></div>
+            <button class="btn btn-secondary btn-sm" id="add-note" style="width:100%;justify-content:center">Add note to timeline</button>
+            <div style="height:10px"></div>
             <button class="btn btn-secondary btn-sm" id="escalate" style="width:100%;justify-content:center">Escalate to Kevin</button>
           </div>
 
           <div class="card">
             <div class="card-title">Client</div>
             <div style="font-size:13px;line-height:1.9;color:#475569">
-              <div><strong style="color:#1e293b">Name:</strong> ${esc(cust.fields.Name || '—')}</div>
-              <div><strong style="color:#1e293b">Company:</strong> ${esc(cust.fields.Company || '—')}</div>
-              <div><strong style="color:#1e293b">Email:</strong> ${esc(cust.fields.Email || '—')}</div>
-              <div><strong style="color:#1e293b">Signup:</strong> ${fmtDate(cust.fields['Signup At'])}</div>
-              <div><strong style="color:#1e293b">Activated:</strong> ${cust.fields['Activated At'] ? fmtDate(cust.fields['Activated At']) : '—'}</div>
-              <div><strong style="color:#1e293b">Status:</strong> ${esc(cust.fields['Status'] || '—')}</div>
+              <div><strong style="color:#1e293b">Name:</strong> ${esc(fld.Name || '—')}</div>
+              <div><strong style="color:#1e293b">Company:</strong> ${esc(fld.Company || '—')}</div>
+              <div><strong style="color:#1e293b">Email:</strong> ${esc(fld.Email || '—')}</div>
+              <div><strong style="color:#1e293b">Signup:</strong> ${fmtDate(fld['Signup At'])}</div>
+              <div><strong style="color:#1e293b">Activated:</strong> ${fld['Activated At'] ? fmtDate(fld['Activated At']) : '—'}</div>
+              <div><strong style="color:#1e293b">Status:</strong> ${esc(fld['Status'] || '—')}</div>
+              <div><strong style="color:#1e293b">Journey:</strong> ${esc(fld['Journey Status'] || '—')}</div>
             </div>
           </div>
+
+          ${fld['Pain Statement'] ? `
+          <div class="card">
+            <div class="card-title">Activation Brief</div>
+            <div style="font-size:13px;color:#475569;line-height:1.6">
+              <div style="margin-bottom:8px"><strong style="color:#1e293b">Pain:</strong> ${esc(fld['Pain Statement'])}</div>
+              ${fld['Activation Event Name'] ? `<div><strong style="color:#1e293b">Event:</strong> <code style="background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:12px">${esc(fld['Activation Event Name'])}</code></div>` : ''}
+              ${fld['Target Saving GBP/month'] ? `<div style="margin-top:6px"><strong style="color:#1e293b">Target saving:</strong> £${esc(fld['Target Saving GBP/month'])}/month</div>` : ''}
+            </div>
+          </div>` : ''}
         </aside>
       </div>
     </div>
@@ -832,7 +838,7 @@ async function renderCustomerDetail(container, ctx) {
       try {
         await updateRecord(TABLES.marFlags, id, { 'Resolved At': new Date().toISOString() });
         await loadAll();
-        await renderCustomerDetail(container, { customerId });
+        await renderClientDetail(container, { clientId });
       } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Resolve'; }
     });
   });
@@ -844,26 +850,59 @@ async function renderCustomerDetail(container, ctx) {
     if (!reason) { alert('Reason required for manual override.'); return; }
     const btn = $('stage-go'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      await updateRecord(TABLES.journeys, journey.id, { 'Current Stage': to });
-      await createRecord(TABLES.stageTransitions, {
-        'Journey':         [journey.id],
-        'From Stage':      stage,
-        'To Stage':        to,
-        'Transitioned At': new Date().toISOString(),
-        'Trigger Kind':    'manual',
-        'Trigger Detail':  reason,
-        'Actor':           'app'
+      const now = new Date().toISOString();
+      await updateRecord(TABLES.clients, client.id, {
+        'Current Stage':    to,
+        'Stage Entered At': now
+      });
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'stage_transition',
+        'Occurred At':    now,
+        'Description':    stage + ' → ' + to,
+        'From Stage':     stage,
+        'To Stage':       to,
+        'Trigger Kind':   'manual',
+        'Trigger Detail': reason,
+        'Actor':          'app'
       });
       await loadAll();
-      await renderCustomerDetail(container, { customerId });
+      await renderClientDetail(container, { clientId });
     } catch(e){
       alert('Failed: ' + e.message);
       btn.disabled = false; btn.textContent = 'Apply stage change';
     }
   });
 
-  $('escalate').addEventListener('click', () => {
-    alert('Escalation flag set. (Wire to Airtable Automation in v1.1: flips an "Escalated" checkbox on the Journey; automation sends Slack DM to Kevin.)');
+  $('add-note').addEventListener('click', async () => {
+    const note = prompt('Note for the timeline:');
+    if (!note) return;
+    try {
+      await createRecord(TABLES.activityLog, {
+        'Client':      [client.id],
+        'Type':        'note',
+        'Occurred At': new Date().toISOString(),
+        'Description': note,
+        'Actor':       'app'
+      });
+      await renderClientDetail(container, { clientId });
+    } catch(e) { alert('Failed: ' + e.message); }
+  });
+
+  $('escalate').addEventListener('click', async () => {
+    const reason = prompt('What is the escalation about?');
+    if (!reason) return;
+    try {
+      await createRecord(TABLES.activityLog, {
+        'Client':      [client.id],
+        'Type':        'note',
+        'Occurred At': new Date().toISOString(),
+        'Description': 'ESCALATED TO KEVIN: ' + reason,
+        'Actor':       'app'
+      });
+      alert('Escalation logged. (Wire an Airtable Automation to watch for "ESCALATED TO KEVIN" in Activity Log and send a Slack DM.)');
+      await renderClientDetail(container, { clientId });
+    } catch(e) { alert('Failed: ' + e.message); }
   });
 }
 
@@ -872,8 +911,8 @@ async function renderCustomerDetail(container, ctx) {
 // ===========================================================================
 async function renderMarTriage(container) {
   const flags = state.marFlags.slice().sort((a,b) => {
-    const sa = SEVERITY_ORDER[(a.fields['Severity'] || [''])[0]] ?? 9;
-    const sb = SEVERITY_ORDER[(b.fields['Severity'] || [''])[0]] ?? 9;
+    const sa = SEVERITY_ORDER[firstOrSelf(a.fields['Severity'])] ?? 9;
+    const sb = SEVERITY_ORDER[firstOrSelf(b.fields['Severity'])] ?? 9;
     if (sa !== sb) return sa - sb;
     return new Date(a.fields['Triggered At'] || 0) - new Date(b.fields['Triggered At'] || 0);
   });
@@ -906,18 +945,16 @@ async function renderMarTriage(container) {
             </tr></thead>
             <tbody>
             ${flags.map(f => {
-              const sev = (f.fields['Severity'] || [''])[0];
+              const sev = firstOrSelf(f.fields['Severity']);
               const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
-              const journeyId = (f.fields['Journey'] || [])[0];
-              const journey = state.byId.journeys[journeyId];
-              const customerId = (journey?.fields?.['Customer'] || [])[0];
-              const cust = state.byId.customers[customerId];
+              const clientId = (f.fields['Client'] || [])[0];
+              const client = state.byId.clients[clientId];
               const breached = f.fields['SLA Breached'] === 1 || f.fields['SLA Breached'] === true;
               return `
-                <tr data-flag="${f.id}" data-customer="${esc(customerId || '')}">
+                <tr data-flag="${f.id}" data-client="${esc(clientId || '')}">
                   <td><span class="chip chip-${sevChip}">${esc(sev || '—')}</span></td>
-                  <td><strong>${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</strong></td>
-                  <td>${esc(cust?.fields?.Name || cust?.fields?.Company || '(unknown)')}</td>
+                  <td><strong>${esc(firstOrSelf(f.fields['Rule Slug']) || '(rule)')}</strong></td>
+                  <td>${esc(client?.fields?.Name || client?.fields?.Company || '(unknown)')}</td>
                   <td>${fmtDateTime(f.fields['Triggered At'])}</td>
                   <td>${breached ? '<span class="chip chip-red">Breached</span>' : '<span style="color:#94a3b8">OK</span>'}</td>
                   <td><button class="btn btn-success btn-sm" data-resolve="${f.id}">Resolve</button></td>
@@ -934,10 +971,10 @@ async function renderMarTriage(container) {
   container.querySelectorAll('tr[data-flag]').forEach(r => {
     r.addEventListener('click', (ev) => {
       if (ev.target.tagName === 'BUTTON') return;
-      const cId = r.getAttribute('data-customer');
+      const cId = r.getAttribute('data-client');
       if (!cId) return;
-      localStorage.setItem(STORE.cust, cId);
-      goto('detail', { customerId: cId });
+      localStorage.setItem(STORE.client, cId);
+      goto('detail', { clientId: cId });
     });
   });
   container.querySelectorAll('[data-resolve]').forEach(b => {
@@ -980,7 +1017,7 @@ async function renderSettings(container) {
 
       <div class="card">
         <div class="card-title">Cache</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:14px">Loaded into this browser session: ${state.customers.length} customers, ${state.journeys.length} journeys, ${state.marFlags.length} open flags.</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:14px">Loaded into this browser session: ${state.clients.length} clients, ${state.marFlags.length} open flags.</div>
         <button class="btn btn-secondary btn-sm" id="reload-all">↻ Reload all from Airtable</button>
       </div>
 
@@ -1042,7 +1079,7 @@ async function attemptConnect() {
   btn.textContent = 'Connecting…';
   btn.disabled = true;
   try {
-    const res = await fetch('https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(TABLES.customers) + '?pageSize=1', {
+    const res = await fetch('https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(TABLES.clients) + '?pageSize=1', {
       headers: { 'Authorization': 'Bearer ' + pat }
     });
     if (res.status === 401 || res.status === 403) {
@@ -1052,7 +1089,7 @@ async function attemptConnect() {
       return;
     }
     if (res.status === 404) {
-      err.textContent = 'Base or required table not found. Build the schema first.';
+      err.textContent = 'Base or "Clients" table not found. Build the schema first.';
       err.classList.remove('hidden');
       btn.textContent = 'Connect →'; btn.disabled = false;
       return;
