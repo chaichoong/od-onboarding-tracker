@@ -388,6 +388,13 @@ function fmtDateTime(d){ if(!d) return '—'; const t = new Date(d); if(isNaN(t)
 function daysBetween(a, b){ if(!a) return 0; const ms = (b ? new Date(b) : new Date()) - new Date(a); return Math.max(0, Math.floor(ms / 86400000)); }
 function healthBucket(s){ if(s == null) return 'health-warn'; if(s >= 75) return 'health-ok'; if(s >= 50) return 'health-warn'; return 'health-bad'; }
 function firstOrSelf(v){ return Array.isArray(v) ? v[0] : v; }
+function selVal(v){
+  // Normalise singleSelect/lookup values: strings come back as strings, but some Airtable contexts return objects {id,name,color} or arrays of those.
+  if (v == null) return '';
+  if (Array.isArray(v)) return selVal(v[0]);
+  if (typeof v === 'object' && v.name) return v.name;
+  return String(v);
+}
 
 // ===========================================================================
 // AIRTABLE CLIENT
@@ -528,8 +535,8 @@ async function renderDashboard(container) {
   const f = state.filters;
   let rows = state.clients.filter(c => {
     const fld = c.fields || {};
-    if (!ACTIVE_JOURNEY_STATUSES.includes(fld['Journey Status'] || 'in_progress')) return false;
-    if (f.stage && fld['Current Stage'] !== f.stage) return false;
+    if (!ACTIVE_JOURNEY_STATUSES.includes(selVal(fld['Journey Status']) || 'in_progress')) return false;
+    if (f.stage && selVal(fld['Current Stage']) !== f.stage) return false;
     if (f.healthMin && (Number(fld['Health Score'] || 0) < Number(f.healthMin))) return false;
     if (f.hasMar === 'yes' && !(Number(fld['Open MAR Count'] || 0) > 0)) return false;
     if (f.hasMar === 'no'  &&  (Number(fld['Open MAR Count'] || 0) > 0)) return false;
@@ -542,14 +549,14 @@ async function renderDashboard(container) {
   });
 
   rows.sort((a,b) => {
-    const sa = (a.fields['Journey Status'] === 'at_risk') ? 0 : 1;
-    const sb = (b.fields['Journey Status'] === 'at_risk') ? 0 : 1;
+    const sa = (selVal(a.fields['Journey Status']) === 'at_risk') ? 0 : 1;
+    const sb = (selVal(b.fields['Journey Status']) === 'at_risk') ? 0 : 1;
     if (sa !== sb) return sa - sb;
     return new Date(a.fields['Signup At'] || 0) - new Date(b.fields['Signup At'] || 0);
   });
 
-  const totalActive  = state.clients.filter(c => ACTIVE_JOURNEY_STATUSES.includes(c.fields['Journey Status'] || 'in_progress')).length;
-  const atRiskCount  = state.clients.filter(c => c.fields['Journey Status'] === 'at_risk').length;
+  const totalActive  = state.clients.filter(c => ACTIVE_JOURNEY_STATUSES.includes(selVal(c.fields['Journey Status']) || 'in_progress')).length;
+  const atRiskCount  = state.clients.filter(c => selVal(c.fields['Journey Status']) === 'at_risk').length;
   const activatedThisMonth = state.clients.filter(c => {
     const a = c.fields['Activated At'];
     if (!a) return false;
@@ -614,19 +621,19 @@ async function renderDashboard(container) {
               <th>Target First Win</th>
               <th>Health</th>
               <th>Open MAR</th>
-              <th>Plan</th>
+              <th>Product</th>
             </tr></thead>
             <tbody>
             ${rows.map(c => {
               const fld = c.fields || {};
-              const stage = fld['Current Stage'] || 'signup';
+              const stage = selVal(fld['Current Stage']) || 'signup';
               const signupAt = fld['Signup At'];
               const targetAt = fld['Target First Win At'];
               const daysInStage = Number(fld['Days In Current Stage'] || 0);
               const daysSinceSignup = daysBetween(signupAt);
               const health = fld['Health Score'];
               const openMar = Number(fld['Open MAR Count'] || 0);
-              const tier = fld['Plan Tier'] || '—';
+              const tier = selVal(fld['Product']) || '—';
               return `
                 <tr data-client="${esc(c.id)}">
                   <td>
@@ -692,7 +699,7 @@ async function renderClientDetail(container, ctx) {
   ]);
   setStatus('ok','Live');
 
-  const stage = fld['Current Stage'] || 'signup';
+  const stage = selVal(fld['Current Stage']) || 'signup';
   const health = fld['Health Score'];
   const signupAt = fld['Signup At'];
   const targetAt = fld['Target First Win At'];
@@ -703,7 +710,7 @@ async function renderClientDetail(container, ctx) {
 
   const renderActivity = (a) => {
     const af = a.fields || {};
-    const t = af.Type || 'note';
+    const t = selVal(af.Type) || 'note';
     let title = af.Description || '';
     if (!title) {
       if (t === 'stage_transition') title = (af['From Stage'] || '—') + ' → ' + (af['To Stage'] || '—');
@@ -736,7 +743,7 @@ async function renderClientDetail(container, ctx) {
         <div>
           <h1 class="page-title">${esc(fld.Name || fld.Company || 'Client')}</h1>
           <div class="page-sub">
-            ${esc(fld.Company || '')} · ${esc(fld.Email || '')} · Plan: <strong>${esc(fld['Plan Tier'] || '—')}</strong>
+            ${esc(fld.Company || '')} · ${esc(fld.Email || '')} · Product: <strong>${esc(selVal(fld['Product']) || '—')}</strong>
           </div>
         </div>
         <div class="stat-row">
@@ -758,7 +765,7 @@ async function renderClientDetail(container, ctx) {
           <div class="card">
             <div class="card-title">Open MAR Flags (${openFlags.length})</div>
             ${openFlags.length === 0 ? `<div style="color:#64748b;font-size:13px">No open flags.</div>` : openFlags.map(f => {
-              const sev = firstOrSelf(f.fields['Severity']);
+              const sev = selVal(f.fields['Severity']);
               const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
               return `
               <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0;border-bottom:1px solid #f1f5f9;gap:12px">
@@ -811,8 +818,8 @@ async function renderClientDetail(container, ctx) {
               <div><strong style="color:#1e293b">Email:</strong> ${esc(fld.Email || '—')}</div>
               <div><strong style="color:#1e293b">Signup:</strong> ${fmtDate(fld['Signup At'])}</div>
               <div><strong style="color:#1e293b">Activated:</strong> ${fld['Activated At'] ? fmtDate(fld['Activated At']) : '—'}</div>
-              <div><strong style="color:#1e293b">Status:</strong> ${esc(fld['Status'] || '—')}</div>
-              <div><strong style="color:#1e293b">Journey:</strong> ${esc(fld['Journey Status'] || '—')}</div>
+              <div><strong style="color:#1e293b">Status:</strong> ${esc(selVal(fld['Status']) || '—')}</div>
+              <div><strong style="color:#1e293b">Journey:</strong> ${esc(selVal(fld['Journey Status']) || '—')}</div>
             </div>
           </div>
 
@@ -911,8 +918,8 @@ async function renderClientDetail(container, ctx) {
 // ===========================================================================
 async function renderMarTriage(container) {
   const flags = state.marFlags.slice().sort((a,b) => {
-    const sa = SEVERITY_ORDER[firstOrSelf(a.fields['Severity'])] ?? 9;
-    const sb = SEVERITY_ORDER[firstOrSelf(b.fields['Severity'])] ?? 9;
+    const sa = SEVERITY_ORDER[selVal(a.fields['Severity'])] ?? 9;
+    const sb = SEVERITY_ORDER[selVal(b.fields['Severity'])] ?? 9;
     if (sa !== sb) return sa - sb;
     return new Date(a.fields['Triggered At'] || 0) - new Date(b.fields['Triggered At'] || 0);
   });
@@ -945,7 +952,7 @@ async function renderMarTriage(container) {
             </tr></thead>
             <tbody>
             ${flags.map(f => {
-              const sev = firstOrSelf(f.fields['Severity']);
+              const sev = selVal(f.fields['Severity']);
               const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
               const clientId = (f.fields['Client'] || [])[0];
               const client = state.byId.clients[clientId];
