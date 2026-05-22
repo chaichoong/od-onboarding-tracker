@@ -294,8 +294,8 @@ input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0
     </div>
     <div class="connect-help">
       Get a token at <a href="https://airtable.com/create/tokens" target="_blank">airtable.com/create/tokens</a><br>
-      Needs <strong>data.records:read</strong> + <strong>data.records:write</strong> on the <strong>Operations Director Client Onboarding</strong> base.<br>
-      Base ID starts with <strong>app</strong> and is in the Airtable URL.
+      Needs <strong>data.records:read</strong> + <strong>data.records:write</strong> on the <strong>⚙️ Operations Director</strong> base.<br>
+      Base ID is <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:11px">appnqjDpqDniH3IRl</code>
     </div>
     <button id="connect-btn" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">Connect →</button>
   </div>
@@ -337,11 +337,11 @@ input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0
 // CONFIG — 6-table schema
 // ===========================================================================
 const TABLES = {
-  clients:       'Clients',
-  activityLog:   'Activity Log',
-  marFlags:      'MAR Flags',
-  marRules:      'MAR Rules',
-  heroWorkflows: 'Hero Workflows',
+  clients:       '🎯 Onboarding Clients',
+  activityLog:   '🎯 Onboarding Activity Log',
+  marFlags:      '🎯 Onboarding MAR Flags',
+  marRules:      '🎯 Onboarding MAR Rules',
+  heroWorkflows: '🎯 Onboarding Hero Workflows',
   teamMembers:   'Team Members'
 };
 
@@ -1060,56 +1060,81 @@ function showConnectScreen(errorMsg) {
   setTimeout(() => patIn.focus(), 60);
 }
 
+function showConnectError(msg) {
+  const err = $('connect-error');
+  err.innerHTML = msg;
+  err.classList.remove('hidden');
+}
+
 async function attemptConnect() {
   const pat  = $('connect-pat').value.trim();
   const base = $('connect-base').value.trim();
   const btn  = $('connect-btn');
   const err  = $('connect-error');
   err.classList.add('hidden');
+
   if (!pat || !base) {
-    err.textContent = 'Both Personal Access Token and Base ID are required.';
-    err.classList.remove('hidden');
+    showConnectError('Both Personal Access Token and Base ID are required.');
     return;
   }
-  if (!base.startsWith('app')) {
-    err.textContent = 'Base ID should start with "app".';
-    err.classList.remove('hidden');
+  if (!base.startsWith('app') || base.length !== 17) {
+    showConnectError('Base ID should start with "app" and be 17 characters long. You entered <code>' + esc(base) + '</code> (' + base.length + ' chars).');
     return;
   }
+  if (!pat.startsWith('pat')) {
+    showConnectError('Personal Access Token should start with "pat". Get one at <a href="https://airtable.com/create/tokens" target="_blank">airtable.com/create/tokens</a>.');
+    return;
+  }
+
   btn.textContent = 'Connecting…';
   btn.disabled = true;
+
+  // Try Clients first; if 404 fall back to whoami to distinguish "wrong PAT" from "table missing"
+  const url = 'https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(TABLES.clients) + '?pageSize=1';
+
   try {
-    const res = await fetch('https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(TABLES.clients) + '?pageSize=1', {
+    const res = await fetch(url, {
       headers: { 'Authorization': 'Bearer ' + pat }
     });
-    if (res.status === 401 || res.status === 403) {
-      err.textContent = 'Token rejected. Check scopes and base access.';
-      err.classList.remove('hidden');
-      btn.textContent = 'Connect →'; btn.disabled = false;
+    let body = null;
+    try { body = await res.json(); } catch(_) {}
+    const errMsg = body?.error?.message || body?.error?.type || body?.error || '';
+    const errType = body?.error?.type || '';
+
+    if (res.ok) {
+      localStorage.setItem(STORE.pat, pat);
+      localStorage.setItem(STORE.base, base);
+      $('connect-screen').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      await loadAll();
+      const last = localStorage.getItem(STORE.page) || 'dashboard';
+      goto(last);
       return;
     }
-    if (res.status === 404) {
-      err.textContent = 'Base or "Clients" table not found. Build the schema first.';
-      err.classList.remove('hidden');
-      btn.textContent = 'Connect →'; btn.disabled = false;
-      return;
+
+    let userMsg = '';
+    if (res.status === 401) {
+      userMsg = '<strong>401 Unauthorized.</strong> The token is invalid or revoked. ';
+      userMsg += 'Create a new one at <a href="https://airtable.com/create/tokens" target="_blank">airtable.com/create/tokens</a>.';
+    } else if (res.status === 403) {
+      userMsg = '<strong>403 Forbidden.</strong> The token exists but cannot access this base or table. Check:<br>';
+      userMsg += '&nbsp;&bull; The token has <code>data.records:read</code> AND <code>data.records:write</code> scopes.<br>';
+      userMsg += '&nbsp;&bull; The token is scoped to <strong>⚙️ Operations Director</strong> (or "all bases").<br>';
+      userMsg += '&nbsp;&bull; If the token uses <strong>table-level access</strong>, edit it to allow the <code>🎯 Onboarding Clients</code> table (and others).<br>';
+      if (errType) userMsg += '<br><em>Airtable says:</em> <code>' + esc(errType) + '</code>';
+    } else if (res.status === 404) {
+      userMsg = '<strong>404 Not Found.</strong> Either the base ID is wrong, or the <code>🎯 Onboarding Clients</code> table does not exist. ';
+      userMsg += 'Confirm Base ID is <code>appnqjDpqDniH3IRl</code> and that the new tables were created.';
+      if (errType) userMsg += '<br><em>Airtable says:</em> <code>' + esc(errType) + '</code>';
+    } else if (res.status === 429) {
+      userMsg = '<strong>429 Too Many Requests.</strong> Wait 30 seconds and try again.';
+    } else {
+      userMsg = '<strong>HTTP ' + res.status + '.</strong> ' + (errMsg ? esc(errMsg) : 'Unexpected response.');
     }
-    if (!res.ok) {
-      err.textContent = 'HTTP ' + res.status + '. Try again.';
-      err.classList.remove('hidden');
-      btn.textContent = 'Connect →'; btn.disabled = false;
-      return;
-    }
-    localStorage.setItem(STORE.pat, pat);
-    localStorage.setItem(STORE.base, base);
-    $('connect-screen').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    await loadAll();
-    const last = localStorage.getItem(STORE.page) || 'dashboard';
-    goto(last);
+    showConnectError(userMsg);
+    btn.textContent = 'Connect →'; btn.disabled = false;
   } catch(e) {
-    err.textContent = 'Network error: ' + e.message;
-    err.classList.remove('hidden');
+    showConnectError('<strong>Network error.</strong> ' + esc(e.message) + '. Check your internet connection and that <code>api.airtable.com</code> is reachable from this page.');
     btn.textContent = 'Connect →'; btn.disabled = false;
   }
 }
