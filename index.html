@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operations Director · Client Onboarding</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f8fafc;
+  color: #1e293b;
+  line-height: 1.6;
+  font-size: 14px;
+}
+a { color:#2563eb; text-decoration:none; }
+a:hover { text-decoration:underline; }
+button { font-family:inherit; cursor:pointer; }
+input,select,textarea {
+  font-family:inherit;
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  color:#1e293b;
+  border-radius:6px;
+  padding:8px 10px;
+  outline:none;
+  font-size:13px;
+  width:100%;
+}
+input:focus,select:focus,textarea:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: 220px; min-width: 220px;
+  background: linear-gradient(180deg, #0f2a3d 0%, #133a50 100%);
+  color: white;
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+  border-right: 3px solid;
+  border-image: linear-gradient(180deg, #0891b2, #1e40af) 1;
+  transition: transform 0.3s ease;
+}
+.sidebar-header { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.sidebar-header h1 { font-size:15px; font-weight:700; margin:0; letter-spacing:-.3px; }
+.sidebar-header .sub { font-size:11px; color:rgba(255,255,255,0.55); margin-top:4px; }
+.sidebar-nav { flex:1; padding:8px 0; overflow-y:auto; }
+.sidebar-section-title { font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,0.4); padding:14px 16px 6px; font-weight:600; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  color: rgba(255,255,255,0.78);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease;
+}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: white; }
+.nav-item.active { background: rgba(255,255,255,0.08); color: white; border-left-color: #0891b2; }
+.nav-item .nav-icon { font-size:15px; width:18px; text-align:center; }
+.nav-item .nav-badge {
+  margin-left:auto;
+  background:#dc2626; color:white;
+  border-radius:10px;
+  font-size:10px; font-weight:700;
+  padding:1px 7px;
+  min-width:18px; text-align:center;
+}
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+}
+.sidebar-footer .status-row { display:flex; align-items:center; gap:8px; }
+.status-dot { width:8px; height:8px; border-radius:50%; background:#64748b; }
+.status-dot.ok { background:#16a34a; box-shadow:0 0 6px rgba(22,163,74,.55); }
+.status-dot.loading { background:#d97706; animation:pulse 1.2s infinite; }
+.status-dot.err { background:#dc2626; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.sidebar-toggle {
+  display:none; position:fixed; top:10px; left:10px; z-index:200;
+  background:#0f2a3d; color:white; border:none; border-radius:6px;
+  padding:8px 12px; font-size:18px; cursor:pointer;
+}
+.sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99; }
+
+/* ===== Main content ===== */
+.main { margin-left: 220px; padding: 0; min-height: 100vh; }
+.page { padding: 24px 32px; max-width: 1500px; }
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:20px; }
+.page-title { font-size:24px; font-weight:700; letter-spacing:-.4px; color:#1e293b; }
+.page-sub { color:#64748b; font-size:13px; margin-top:4px; }
+
+/* ===== Cards ===== */
+.card {
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:20px;
+  margin-bottom:16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.card-title {
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  color:#64748b;
+  margin-bottom:14px;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  border:1px solid transparent;
+  border-radius:6px;
+  padding:8px 14px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  transition: all 0.15s ease;
+}
+.btn-primary { background:#2563eb; color:#ffffff; }
+.btn-primary:hover { background:#1d4ed8; }
+.btn-secondary { background:#ffffff; color:#475569; border-color:#e2e8f0; }
+.btn-secondary:hover { background:#f1f5f9; color:#1e293b; }
+.btn-success { background:#dcfce7; color:#16a34a; border-color:#86efac; }
+.btn-success:hover { background:#16a34a; color:#ffffff; }
+.btn-danger { background:#fee2e2; color:#dc2626; border-color:#fecaca; }
+.btn-danger:hover { background:#dc2626; color:#ffffff; }
+.btn-sm { padding:5px 11px; font-size:11px; }
+
+/* ===== Table ===== */
+.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.tbl th {
+  text-align:left;
+  padding:10px 14px;
+  font-weight:600;
+  text-transform:uppercase;
+  font-size:10px;
+  letter-spacing:.06em;
+  color:#64748b;
+  border-bottom:1px solid #e2e8f0;
+  background:#f8fafc;
+  position:sticky; top:0;
+}
+.tbl td {
+  padding:12px 14px;
+  border-bottom:1px solid #f1f5f9;
+  vertical-align:middle;
+}
+.tbl tbody tr { transition: background .1s ease; }
+.tbl tbody tr:hover td { background:#f8fafc; cursor:pointer; }
+
+/* ===== Chips ===== */
+.chip {
+  display:inline-flex;
+  align-items:center;
+  padding:3px 9px;
+  border-radius:99px;
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.01em;
+  border:1px solid transparent;
+  white-space:nowrap;
+  text-transform:none;
+}
+.chip-gray   { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }
+.chip-blue   { background:#dbeafe; color:#1d4ed8; border-color:#bfdbfe; }
+.chip-purple { background:#ede9fe; color:#6d28d9; border-color:#ddd6fe; }
+.chip-indigo { background:#e0e7ff; color:#4338ca; border-color:#c7d2fe; }
+.chip-cyan   { background:#cffafe; color:#0e7490; border-color:#a5f3fc; }
+.chip-green  { background:#dcfce7; color:#15803d; border-color:#bbf7d0; }
+.chip-teal   { background:#ccfbf1; color:#0f766e; border-color:#99f6e4; }
+.chip-amber  { background:#fef3c7; color:#a16207; border-color:#fde68a; }
+.chip-red    { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+
+/* ===== Health score chip ===== */
+.health-chip {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:44px; height:26px;
+  border-radius:6px;
+  font-weight:700;
+  font-size:13px;
+}
+.health-ok   { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
+.health-warn { background:#fef3c7; color:#a16207; border:1px solid #fde68a; }
+.health-bad  { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+
+/* ===== Stat tiles ===== */
+.stat-row { display:flex; gap:10px; flex-wrap:wrap; }
+.stat-tile {
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:12px 16px;
+  min-width:100px;
+  text-align:center;
+}
+.stat-tile .lbl { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+.stat-tile .val { font-size:20px; font-weight:700; color:#1e293b; margin-top:4px; }
+
+/* ===== Empty state ===== */
+.empty { text-align:center; padding:60px 20px; color:#64748b; }
+.empty-icon { font-size:48px; margin-bottom:12px; opacity:.45; }
+.empty-title { font-size:16px; font-weight:600; color:#1e293b; margin-bottom:6px; }
+.empty-sub { font-size:13px; color:#64748b; }
+
+/* ===== Filters ===== */
+.filter-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+.filter-bar input,.filter-bar select { width:auto; padding:7px 10px; font-size:12px; }
+.filter-label { font-size:10px; text-transform:uppercase; color:#64748b; letter-spacing:.06em; font-weight:600; }
+
+/* ===== Detail layout ===== */
+.detail-grid { display:grid; grid-template-columns:1fr 320px; gap:16px; }
+@media (max-width:1100px){ .detail-grid{ grid-template-columns:1fr; } }
+
+/* ===== Timeline ===== */
+.tl-item { display:flex; gap:14px; padding:11px 0; border-bottom:1px solid #f1f5f9; }
+.tl-item:last-child { border-bottom:none; }
+.tl-dot { width:8px; height:8px; border-radius:50%; background:#2563eb; margin-top:7px; flex-shrink:0; }
+.tl-content { flex:1; font-size:13px; }
+.tl-meta { color:#64748b; font-size:11px; margin-top:3px; }
+
+/* ===== Form rows ===== */
+.field { margin-bottom:14px; }
+.field label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:600; margin-bottom:5px; }
+.field textarea { min-height:70px; resize:vertical; line-height:1.5; }
+
+/* ===== Connect screen ===== */
+.connect {
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:#f8fafc;
+}
+.connect-card {
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:40px;
+  max-width:460px;
+  width:100%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.connect-logo { font-size:22px; font-weight:700; margin-bottom:8px; color:#1e293b; letter-spacing:-.3px; }
+.connect-logo span { color:#2563eb; }
+.connect-sub { color:#64748b; font-size:13px; line-height:1.6; margin-bottom:24px; }
+.connect-error { background:#fee2e2; border:1px solid #fecaca; border-radius:7px; padding:11px 13px; color:#b91c1c; font-size:12px; margin-bottom:14px; line-height:1.5; }
+.connect-help { font-size:12px; color:#64748b; margin-bottom:18px; line-height:1.7; }
+.connect-help strong { color:#1e293b; }
+
+.hidden { display:none !important; }
+
+/* ===== Mobile ===== */
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; padding-top: 56px; }
+  .page { padding: 16px; }
+  .sidebar-toggle { display: block; }
+  .sidebar.open + .sidebar-overlay { display: block; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== Connect / setup screen ===================== -->
+<div id="connect-screen" class="connect hidden">
+  <div class="connect-card">
+    <div class="connect-logo">⚙️ Operations Director · <span>Client Onboarding</span></div>
+    <div class="connect-sub">Connect to your Airtable base to load client journeys.</div>
+    <div id="connect-error" class="connect-error hidden"></div>
+    <div class="field">
+      <label>Airtable Personal Access Token</label>
+      <input id="connect-pat" type="password" placeholder="pat..." autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Airtable Base ID</label>
+      <input id="connect-base" type="text" placeholder="appXXXXXXXXXXXXXX" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="connect-help">
+      Get a token at <a href="https://airtable.com/create/tokens" target="_blank">airtable.com/create/tokens</a><br>
+      Needs <strong>data.records:read</strong> + <strong>data.records:write</strong> on the <strong>Operations Director Client Onboarding</strong> base.<br>
+      Base ID starts with <strong>app</strong> and is in the Airtable URL.
+    </div>
+    <button id="connect-btn" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">Connect →</button>
+  </div>
+</div>
+
+<!-- ===================== App shell ===================== -->
+<button id="sb-toggle" class="sidebar-toggle">☰</button>
+<div id="sb-overlay" class="sidebar-overlay" onclick="document.getElementById('sb').classList.remove('open')"></div>
+
+<div id="app" class="hidden">
+  <aside id="sb" class="sidebar">
+    <div class="sidebar-header">
+      <h1>⚙️ Operations Director</h1>
+      <div class="sub">Client Onboarding</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section-title">Workspace</div>
+      <div class="nav-item" data-page="dashboard"><span class="nav-icon">📊</span>Cohort</div>
+      <div class="nav-item" data-page="mar"><span class="nav-icon">🚨</span>MAR Triage<span id="mar-badge" class="nav-badge" style="display:none"></span></div>
+      <div class="sidebar-section-title">System</div>
+      <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-row">
+        <div id="status-dot" class="status-dot loading"></div>
+        <span id="status-text">Loading…</span>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+    <div id="page-container"></div>
+  </main>
+</div>
+
+<div id="modal-mount"></div>
+
+<script>
+// ===========================================================================
+// CONFIG
+// ===========================================================================
+const TABLES = {
+  customers: 'Customers',
+  journeys: 'Journeys',
+  stageTransitions: 'Stage Transitions',
+  telemetry: 'Telemetry Events',
+  touchpoints: 'Touchpoint Deliveries',
+  marRules: 'MAR Rules',
+  marFlags: 'MAR Flags',
+  heroWorkflows: 'Hero Workflows',
+  activationEvents: 'Activation Event Definitions',
+  tutorialProgress: 'Tutorial Progress',
+  teamMembers: 'Team Members'
+};
+
+const STAGES = [
+  'signup','welcome','activation_brief','configuration',
+  'first_use','first_win','expansion','activated','failed','refunded'
+];
+
+const STAGE_CHIP = {
+  signup:'gray', welcome:'blue', activation_brief:'purple',
+  configuration:'indigo', first_use:'cyan', first_win:'green',
+  expansion:'teal', activated:'green', failed:'red', refunded:'gray'
+};
+
+const STORE = {
+  pat:   'od_at_key',
+  base:  'od_at_base',
+  page:  'od_current_page',
+  cust:  'od_current_customer'
+};
+
+const SEVERITY_ORDER = { critical:0, high:1, medium:2, low:3 };
+
+// ===========================================================================
+// HELPERS
+// ===========================================================================
+function getPat()  { return localStorage.getItem(STORE.pat)  || ''; }
+function getBase() { return localStorage.getItem(STORE.base) || ''; }
+
+function setStatus(state, text){
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if(!dot || !txt) return;
+  dot.className = 'status-dot ' + state;
+  txt.textContent = text || '';
+}
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ if(s == null) return ''; return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function fmtDate(d){ if(!d) return '—'; const t = new Date(d); if(isNaN(t)) return '—'; return t.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}); }
+function fmtDateTime(d){ if(!d) return '—'; const t = new Date(d); if(isNaN(t)) return '—'; return t.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function daysBetween(a, b){ if(!a) return 0; const ms = (b ? new Date(b) : new Date()) - new Date(a); return Math.max(0, Math.floor(ms / 86400000)); }
+function healthBucket(s){ if(s == null) return 'health-warn'; if(s >= 75) return 'health-ok'; if(s >= 50) return 'health-warn'; return 'health-bad'; }
+
+// ===========================================================================
+// AIRTABLE CLIENT
+// ===========================================================================
+async function atFetch(path, opts = {}) {
+  const pat = getPat();
+  const base = getBase();
+  if (!pat || !base) throw new Error('Not connected');
+  const url = 'https://api.airtable.com/v0/' + base + path;
+  const headers = Object.assign({
+    'Authorization': 'Bearer ' + pat,
+    'Content-Type':  'application/json'
+  }, opts.headers || {});
+  const res = await fetch(url, { method: opts.method || 'GET', headers, body: opts.body });
+  if (res.status === 401 || res.status === 403) {
+    localStorage.removeItem(STORE.pat);
+    localStorage.removeItem(STORE.base);
+    showConnectScreen('Token rejected. Reconnect.');
+    throw new Error('Auth failed');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || ('HTTP ' + res.status));
+  }
+  return res.json();
+}
+
+async function listAll(tableName, params = '') {
+  const out = [];
+  let offset = '';
+  do {
+    const qp = new URLSearchParams(params);
+    if (offset) qp.set('offset', offset);
+    qp.set('pageSize', '100');
+    const data = await atFetch('/' + encodeURIComponent(tableName) + '?' + qp.toString());
+    out.push(...(data.records || []));
+    offset = data.offset || '';
+  } while (offset);
+  return out;
+}
+
+async function getRecord(tableName, id) {
+  return atFetch('/' + encodeURIComponent(tableName) + '/' + id);
+}
+
+async function updateRecord(tableName, id, fields) {
+  return atFetch('/' + encodeURIComponent(tableName) + '/' + id, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields })
+  });
+}
+
+async function createRecord(tableName, fields) {
+  return atFetch('/' + encodeURIComponent(tableName), {
+    method: 'POST',
+    body: JSON.stringify({ fields })
+  });
+}
+
+// ===========================================================================
+// STATE
+// ===========================================================================
+const state = {
+  customers: [],
+  journeys: [],
+  marFlags: [],
+  marRules: [],
+  byId: {
+    customers: {},
+    journeys: {},
+    teamMembers: {},
+    heroWorkflows: {}
+  },
+  loading: false,
+  filters: {
+    stage: '',
+    healthMin: '',
+    hasMar: '',
+    query: ''
+  }
+};
+
+async function loadAll() {
+  setStatus('loading','Loading…');
+  state.loading = true;
+  try {
+    const [customers, journeys, marFlags, marRules, team, heroWfs] = await Promise.all([
+      listAll(TABLES.customers),
+      listAll(TABLES.journeys),
+      listAll(TABLES.marFlags, 'filterByFormula=' + encodeURIComponent('{Resolved At} = BLANK()')),
+      listAll(TABLES.marRules),
+      listAll(TABLES.teamMembers),
+      listAll(TABLES.heroWorkflows)
+    ]);
+    state.customers = customers;
+    state.journeys = journeys;
+    state.marFlags = marFlags;
+    state.marRules = marRules;
+    state.byId.customers     = Object.fromEntries(customers.map(r => [r.id, r]));
+    state.byId.journeys      = Object.fromEntries(journeys.map(r => [r.id, r]));
+    state.byId.teamMembers   = Object.fromEntries(team.map(r => [r.id, r]));
+    state.byId.heroWorkflows = Object.fromEntries(heroWfs.map(r => [r.id, r]));
+    setStatus('ok','Live');
+    updateMarBadge();
+  } catch (e) {
+    setStatus('err','Error: ' + e.message);
+    throw e;
+  } finally {
+    state.loading = false;
+  }
+}
+
+function updateMarBadge() {
+  const badge = $('mar-badge');
+  if (!badge) return;
+  const n = state.marFlags.length;
+  badge.textContent = n > 0 ? n : '';
+  badge.style.display = n > 0 ? '' : 'none';
+}
+
+// ===========================================================================
+// NAVIGATION
+// ===========================================================================
+function setActiveNav(page){
+  document.querySelectorAll('.nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === page);
+  });
+}
+
+async function goto(page, ctx) {
+  localStorage.setItem(STORE.page, page);
+  setActiveNav(page);
+  document.getElementById('sb').classList.remove('open');
+  const c = $('page-container');
+  c.innerHTML = '<div class="page"><div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Loading…</div></div></div>';
+  try {
+    if (page === 'dashboard')   await renderDashboard(c);
+    else if (page === 'mar')    await renderMarTriage(c);
+    else if (page === 'detail') await renderCustomerDetail(c, ctx);
+    else if (page === 'settings') await renderSettings(c);
+    else await renderDashboard(c);
+  } catch(e){
+    c.innerHTML = '<div class="page"><div class="empty"><div class="empty-icon">⚠</div><div class="empty-title">Failed to load</div><div class="empty-sub">' + esc(e.message) + '</div></div></div>';
+  }
+}
+
+// ===========================================================================
+// PAGE: DASHBOARD
+// ===========================================================================
+async function renderDashboard(container) {
+  const f = state.filters;
+  let rows = state.journeys.filter(j => {
+    const stage = j.fields['Current Stage'];
+    const status = j.fields['Status'];
+    if (!['in_progress','at_risk'].includes(status || 'in_progress')) return false;
+    if (f.stage && stage !== f.stage) return false;
+    if (f.healthMin && (Number(j.fields['Health Score'] || 0) < Number(f.healthMin))) return false;
+    if (f.hasMar === 'yes' && !(Number(j.fields['Open MAR Count'] || 0) > 0)) return false;
+    if (f.hasMar === 'no'  &&  (Number(j.fields['Open MAR Count'] || 0) > 0)) return false;
+    if (f.query) {
+      const custId = (j.fields['Customer'] || [])[0];
+      const cust = state.byId.customers[custId];
+      const q = f.query.toLowerCase();
+      const hay = ((cust?.fields?.Name || '') + ' ' + (cust?.fields?.Company || '') + ' ' + (cust?.fields?.Email || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a,b) => {
+    const sa = SEVERITY_ORDER[(a.fields['Status'] === 'at_risk' ? 'high' : 'medium')];
+    const sb = SEVERITY_ORDER[(b.fields['Status'] === 'at_risk' ? 'high' : 'medium')];
+    if (sa !== sb) return sa - sb;
+    return new Date(a.fields['Started At'] || 0) - new Date(b.fields['Started At'] || 0);
+  });
+
+  const totalActive  = state.journeys.filter(j => ['in_progress','at_risk'].includes(j.fields['Status'] || 'in_progress')).length;
+  const atRiskCount  = state.journeys.filter(j => j.fields['Status'] === 'at_risk').length;
+  const activatedThisMonth = state.journeys.filter(j => {
+    const a = j.fields['Activated At'] || (state.byId.customers[(j.fields['Customer']||[])[0]]?.fields?.['Activated At']);
+    if (!a) return false;
+    const d = new Date(a);
+    const now = new Date();
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const openMarTotal = state.marFlags.length;
+
+  const stageOpts = STAGES.map(s => '<option value="' + s + '"' + (f.stage === s ? ' selected' : '') + '>' + s + '</option>').join('');
+
+  container.innerHTML = `
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Cohort</h1>
+          <div class="page-sub">${totalActive} active onboarding journey${totalActive===1?'':'s'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-tile"><div class="lbl">Active</div><div class="val">${totalActive}</div></div>
+          <div class="stat-tile"><div class="lbl">At Risk</div><div class="val" style="color:${atRiskCount>0?'#b91c1c':'#1e293b'}">${atRiskCount}</div></div>
+          <div class="stat-tile"><div class="lbl">Activated MTD</div><div class="val" style="color:#15803d">${activatedThisMonth}</div></div>
+          <div class="stat-tile"><div class="lbl">Open MAR</div><div class="val" style="color:${openMarTotal>0?'#b91c1c':'#1e293b'}">${openMarTotal}</div></div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="f-query" placeholder="Search name, company, email…" value="${esc(f.query)}" style="min-width:240px;width:260px">
+        <span class="filter-label">Stage</span>
+        <select id="f-stage"><option value="">All</option>${stageOpts}</select>
+        <span class="filter-label">Health ≥</span>
+        <select id="f-health">
+          <option value="">Any</option>
+          <option value="75"${f.healthMin === '75' ? ' selected' : ''}>75</option>
+          <option value="50"${f.healthMin === '50' ? ' selected' : ''}>50</option>
+          <option value="25"${f.healthMin === '25' ? ' selected' : ''}>25</option>
+        </select>
+        <span class="filter-label">MAR</span>
+        <select id="f-mar">
+          <option value="">Any</option>
+          <option value="yes"${f.hasMar === 'yes' ? ' selected' : ''}>Has open</option>
+          <option value="no"${f.hasMar === 'no' ? ' selected' : ''}>None</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" id="f-reset">Reset</button>
+        <button class="btn btn-secondary btn-sm" id="f-reload" style="margin-left:auto">↻ Reload</button>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        ${rows.length === 0 ? `
+          <div class="empty">
+            <div class="empty-icon">∅</div>
+            <div class="empty-title">No journeys match</div>
+            <div class="empty-sub">Adjust filters or check the Airtable base.</div>
+          </div>
+        ` : `
+          <table class="tbl">
+            <thead><tr>
+              <th>Client</th>
+              <th>Stage</th>
+              <th>Days in Stage</th>
+              <th>Days Since Signup</th>
+              <th>Target First Win</th>
+              <th>Health</th>
+              <th>Open MAR</th>
+              <th>Plan</th>
+            </tr></thead>
+            <tbody>
+            ${rows.map(j => {
+              const custId = (j.fields['Customer'] || [])[0];
+              const cust = state.byId.customers[custId];
+              const stage = j.fields['Current Stage'] || 'signup';
+              const startedAt = j.fields['Started At'];
+              const targetAt = j.fields['Target First Win At'];
+              const daysInStage = Number(j.fields['Days In Current Stage'] || 0);
+              const daysSinceSignup = daysBetween(startedAt);
+              const health = j.fields['Health Score'];
+              const openMar = Number(j.fields['Open MAR Count'] || 0);
+              const tier = cust?.fields?.['Plan Tier'] || '—';
+              return `
+                <tr data-journey="${j.id}" data-customer="${esc(custId || '')}">
+                  <td>
+                    <div style="font-weight:600;color:#1e293b">${esc(cust?.fields?.Name || cust?.fields?.Company || '(no name)')}</div>
+                    <div style="color:#64748b;font-size:12px">${esc(cust?.fields?.Email || '')}</div>
+                  </td>
+                  <td><span class="chip chip-${STAGE_CHIP[stage] || 'gray'}">${esc(stage)}</span></td>
+                  <td>${daysInStage}</td>
+                  <td>${daysSinceSignup}</td>
+                  <td>${fmtDate(targetAt)}</td>
+                  <td>${health != null ? `<span class="health-chip ${healthBucket(health)}">${Math.round(health)}</span>` : '<span style="color:#94a3b8">—</span>'}</td>
+                  <td>${openMar > 0 ? `<span class="chip chip-red">${openMar}</span>` : '<span style="color:#94a3b8">0</span>'}</td>
+                  <td><span class="chip chip-gray">${esc(tier)}</span></td>
+                </tr>
+              `;
+            }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  // wire filters
+  const onChange = () => {
+    state.filters.query = $('f-query').value;
+    state.filters.stage = $('f-stage').value;
+    state.filters.healthMin = $('f-health').value;
+    state.filters.hasMar = $('f-mar').value;
+    renderDashboard(container);
+  };
+  $('f-query').addEventListener('input',  () => { clearTimeout(window._qt); window._qt = setTimeout(onChange, 200); });
+  $('f-stage').addEventListener('change', onChange);
+  $('f-health').addEventListener('change', onChange);
+  $('f-mar').addEventListener('change',   onChange);
+  $('f-reset').addEventListener('click',  () => { state.filters = {stage:'',healthMin:'',hasMar:'',query:''}; renderDashboard(container); });
+  $('f-reload').addEventListener('click', async () => { await loadAll(); renderDashboard(container); });
+
+  container.querySelectorAll('tr[data-journey]').forEach(r => {
+    r.addEventListener('click', () => {
+      const cId = r.getAttribute('data-customer');
+      localStorage.setItem(STORE.cust, cId);
+      goto('detail', { customerId: cId });
+    });
+  });
+}
+
+// ===========================================================================
+// PAGE: CUSTOMER DETAIL
+// ===========================================================================
+async function renderCustomerDetail(container, ctx) {
+  const customerId = ctx?.customerId || localStorage.getItem(STORE.cust);
+  const cust = state.byId.customers[customerId];
+  if (!cust) {
+    container.innerHTML = '<div class="page"><div class="empty"><div class="empty-icon">∅</div><div class="empty-title">Client not found</div></div></div>';
+    return;
+  }
+  const journey = state.journeys.find(j => (j.fields['Customer'] || [])[0] === customerId);
+  if (!journey) {
+    container.innerHTML = `
+      <div class="page">
+        <button class="btn btn-secondary btn-sm" onclick="goto('dashboard')">← Cohort</button>
+        <h1 class="page-title" style="margin-top:14px">${esc(cust.fields.Name || cust.fields.Company || 'Client')}</h1>
+        <div class="page-sub">No active journey. Create one in Airtable to start tracking.</div>
+      </div>
+    `;
+    return;
+  }
+
+  setStatus('loading','Loading detail…');
+  const [transitions, flagsAll] = await Promise.all([
+    listAll(TABLES.stageTransitions, 'filterByFormula=' + encodeURIComponent("FIND('" + journey.id + "', ARRAYJOIN({Journey}))")).catch(() => []),
+    listAll(TABLES.marFlags,         'filterByFormula=' + encodeURIComponent("FIND('" + journey.id + "', ARRAYJOIN({Journey}))")).catch(() => [])
+  ]);
+  setStatus('ok','Live');
+
+  const stage = journey.fields['Current Stage'] || 'signup';
+  const health = journey.fields['Health Score'];
+  const startedAt = journey.fields['Started At'];
+  const targetAt = journey.fields['Target First Win At'];
+  const openFlags = flagsAll.filter(f => !f.fields['Resolved At']);
+  const closedFlags = flagsAll.filter(f =>  f.fields['Resolved At']);
+
+  transitions.sort((a,b) => new Date(b.fields['Transitioned At'] || 0) - new Date(a.fields['Transitioned At'] || 0));
+
+  const stageOpts = STAGES.map(s => '<option value="' + s + '"' + (stage === s ? ' selected' : '') + '>' + s + '</option>').join('');
+
+  container.innerHTML = `
+    <div class="page">
+      <button class="btn btn-secondary btn-sm" onclick="goto('dashboard')">← Cohort</button>
+
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:14px 0 20px;flex-wrap:wrap">
+        <div>
+          <h1 class="page-title">${esc(cust.fields.Name || cust.fields.Company || 'Client')}</h1>
+          <div class="page-sub">
+            ${esc(cust.fields.Company || '')} · ${esc(cust.fields.Email || '')} · Plan: <strong>${esc(cust.fields['Plan Tier'] || '—')}</strong>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-tile" style="min-width:100px"><div class="lbl">Stage</div><div style="margin-top:6px"><span class="chip chip-${STAGE_CHIP[stage] || 'gray'}">${esc(stage)}</span></div></div>
+          <div class="stat-tile"><div class="lbl">Days</div><div class="val">${daysBetween(startedAt)}</div></div>
+          <div class="stat-tile"><div class="lbl">Health</div><div style="margin-top:6px">${health != null ? `<span class="health-chip ${healthBucket(health)}">${Math.round(health)}</span>` : '—'}</div></div>
+          <div class="stat-tile" style="min-width:120px"><div class="lbl">Target First Win</div><div style="font-size:13px;font-weight:600;margin-top:6px">${fmtDate(targetAt)}</div></div>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <div>
+          <div class="card">
+            <div class="card-title">Timeline</div>
+            ${transitions.length === 0 ? `<div style="color:#64748b;font-size:13px">No stage transitions yet.</div>` : transitions.map(t => `
+              <div class="tl-item">
+                <div class="tl-dot"></div>
+                <div class="tl-content">
+                  <strong>${esc(t.fields['From Stage'] || '—')}</strong> → <strong>${esc(t.fields['To Stage'] || '—')}</strong>
+                  <div class="tl-meta">${fmtDateTime(t.fields['Transitioned At'])} · ${esc(t.fields['Trigger Kind'] || 'system')}${t.fields['Actor'] ? ' · ' + esc(t.fields['Actor']) : ''}</div>
+                  ${t.fields['Trigger Detail'] ? `<div class="tl-meta">${esc(t.fields['Trigger Detail'])}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="card">
+            <div class="card-title">Open MAR Flags (${openFlags.length})</div>
+            ${openFlags.length === 0 ? `<div style="color:#64748b;font-size:13px">No open flags.</div>` : openFlags.map(f => {
+              const sev = (f.fields['Severity'] || [''])[0];
+              const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
+              return `
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0;border-bottom:1px solid #f1f5f9;gap:12px">
+                <div style="flex:1">
+                  <div style="font-weight:600">${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</div>
+                  <div style="color:#64748b;font-size:12px;margin-top:3px">
+                    Triggered ${fmtDateTime(f.fields['Triggered At'])} · <span class="chip chip-${sevChip}">${esc(sev || '—')}</span>
+                  </div>
+                </div>
+                <button class="btn btn-success btn-sm" data-resolve="${f.id}">Resolve</button>
+              </div>
+            `}).join('')}
+          </div>
+
+          ${closedFlags.length > 0 ? `
+          <div class="card">
+            <div class="card-title">Resolved MAR Flags (${closedFlags.length})</div>
+            ${closedFlags.slice(0, 8).map(f => `
+              <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
+                <div>${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</div>
+                <div style="color:#64748b;font-size:12px">Resolved ${fmtDateTime(f.fields['Resolved At'])}</div>
+              </div>
+            `).join('')}
+          </div>` : ''}
+        </div>
+
+        <aside>
+          <div class="card">
+            <div class="card-title">Manual Actions</div>
+            <div class="field">
+              <label>Move to stage</label>
+              <select id="stage-pick">${stageOpts}</select>
+            </div>
+            <div class="field">
+              <label>Reason (audited)</label>
+              <textarea id="stage-reason" placeholder="Why this manual override?"></textarea>
+            </div>
+            <button class="btn btn-primary" id="stage-go" style="width:100%;justify-content:center">Apply stage change</button>
+            <div style="height:10px"></div>
+            <button class="btn btn-secondary btn-sm" id="escalate" style="width:100%;justify-content:center">Escalate to Kevin</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Client</div>
+            <div style="font-size:13px;line-height:1.9;color:#475569">
+              <div><strong style="color:#1e293b">Name:</strong> ${esc(cust.fields.Name || '—')}</div>
+              <div><strong style="color:#1e293b">Company:</strong> ${esc(cust.fields.Company || '—')}</div>
+              <div><strong style="color:#1e293b">Email:</strong> ${esc(cust.fields.Email || '—')}</div>
+              <div><strong style="color:#1e293b">Signup:</strong> ${fmtDate(cust.fields['Signup At'])}</div>
+              <div><strong style="color:#1e293b">Activated:</strong> ${cust.fields['Activated At'] ? fmtDate(cust.fields['Activated At']) : '—'}</div>
+              <div><strong style="color:#1e293b">Status:</strong> ${esc(cust.fields['Status'] || '—')}</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll('[data-resolve]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-resolve');
+      if (!confirm('Mark this flag as resolved?')) return;
+      b.disabled = true; b.textContent = '…';
+      try {
+        await updateRecord(TABLES.marFlags, id, { 'Resolved At': new Date().toISOString() });
+        await loadAll();
+        await renderCustomerDetail(container, { customerId });
+      } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Resolve'; }
+    });
+  });
+
+  $('stage-go').addEventListener('click', async () => {
+    const to = $('stage-pick').value;
+    const reason = $('stage-reason').value.trim();
+    if (to === stage) { alert('Already in that stage.'); return; }
+    if (!reason) { alert('Reason required for manual override.'); return; }
+    const btn = $('stage-go'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await updateRecord(TABLES.journeys, journey.id, { 'Current Stage': to });
+      await createRecord(TABLES.stageTransitions, {
+        'Journey':         [journey.id],
+        'From Stage':      stage,
+        'To Stage':        to,
+        'Transitioned At': new Date().toISOString(),
+        'Trigger Kind':    'manual',
+        'Trigger Detail':  reason,
+        'Actor':           'app'
+      });
+      await loadAll();
+      await renderCustomerDetail(container, { customerId });
+    } catch(e){
+      alert('Failed: ' + e.message);
+      btn.disabled = false; btn.textContent = 'Apply stage change';
+    }
+  });
+
+  $('escalate').addEventListener('click', () => {
+    alert('Escalation flag set. (Wire to Airtable Automation in v1.1: flips an "Escalated" checkbox on the Journey; automation sends Slack DM to Kevin.)');
+  });
+}
+
+// ===========================================================================
+// PAGE: MAR TRIAGE
+// ===========================================================================
+async function renderMarTriage(container) {
+  const flags = state.marFlags.slice().sort((a,b) => {
+    const sa = SEVERITY_ORDER[(a.fields['Severity'] || [''])[0]] ?? 9;
+    const sb = SEVERITY_ORDER[(b.fields['Severity'] || [''])[0]] ?? 9;
+    if (sa !== sb) return sa - sb;
+    return new Date(a.fields['Triggered At'] || 0) - new Date(b.fields['Triggered At'] || 0);
+  });
+
+  container.innerHTML = `
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">MAR Triage</h1>
+          <div class="page-sub">${flags.length} open flag${flags.length === 1 ? '' : 's'}, sorted by severity then age</div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        ${flags.length === 0 ? `
+          <div class="empty">
+            <div class="empty-icon">✓</div>
+            <div class="empty-title">All clear</div>
+            <div class="empty-sub">No open MAR flags right now.</div>
+          </div>
+        ` : `
+          <table class="tbl">
+            <thead><tr>
+              <th>Severity</th>
+              <th>Rule</th>
+              <th>Client</th>
+              <th>Triggered</th>
+              <th>SLA</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+            ${flags.map(f => {
+              const sev = (f.fields['Severity'] || [''])[0];
+              const sevChip = sev === 'critical' ? 'red' : sev === 'high' ? 'amber' : sev === 'medium' ? 'blue' : 'gray';
+              const journeyId = (f.fields['Journey'] || [])[0];
+              const journey = state.byId.journeys[journeyId];
+              const customerId = (journey?.fields?.['Customer'] || [])[0];
+              const cust = state.byId.customers[customerId];
+              const breached = f.fields['SLA Breached'] === 1 || f.fields['SLA Breached'] === true;
+              return `
+                <tr data-flag="${f.id}" data-customer="${esc(customerId || '')}">
+                  <td><span class="chip chip-${sevChip}">${esc(sev || '—')}</span></td>
+                  <td><strong>${esc((f.fields['Rule Slug'] || [''])[0] || '(rule)')}</strong></td>
+                  <td>${esc(cust?.fields?.Name || cust?.fields?.Company || '(unknown)')}</td>
+                  <td>${fmtDateTime(f.fields['Triggered At'])}</td>
+                  <td>${breached ? '<span class="chip chip-red">Breached</span>' : '<span style="color:#94a3b8">OK</span>'}</td>
+                  <td><button class="btn btn-success btn-sm" data-resolve="${f.id}">Resolve</button></td>
+                </tr>
+              `;
+            }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll('tr[data-flag]').forEach(r => {
+    r.addEventListener('click', (ev) => {
+      if (ev.target.tagName === 'BUTTON') return;
+      const cId = r.getAttribute('data-customer');
+      if (!cId) return;
+      localStorage.setItem(STORE.cust, cId);
+      goto('detail', { customerId: cId });
+    });
+  });
+  container.querySelectorAll('[data-resolve]').forEach(b => {
+    b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const id = b.getAttribute('data-resolve');
+      if (!confirm('Mark this flag as resolved?')) return;
+      b.disabled = true; b.textContent = '…';
+      try {
+        await updateRecord(TABLES.marFlags, id, { 'Resolved At': new Date().toISOString() });
+        await loadAll();
+        await renderMarTriage(container);
+      } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Resolve'; }
+    });
+  });
+}
+
+// ===========================================================================
+// PAGE: SETTINGS
+// ===========================================================================
+async function renderSettings(container) {
+  const pat = getPat();
+  const base = getBase();
+  container.innerHTML = `
+    <div class="page" style="max-width:700px">
+      <div class="page-header"><div><h1 class="page-title">Settings</h1><div class="page-sub">Configure your Airtable connection and reset local state.</div></div></div>
+
+      <div class="card">
+        <div class="card-title">Airtable Connection</div>
+        <div class="field">
+          <label>Base ID</label>
+          <input type="text" value="${esc(base)}" disabled>
+        </div>
+        <div class="field">
+          <label>Personal Access Token</label>
+          <input type="password" value="${pat ? '••••••••••••••••••' + pat.slice(-4) : ''}" disabled>
+        </div>
+        <button class="btn btn-danger btn-sm" id="reset-conn">Reconnect Airtable</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Cache</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:14px">Loaded into this browser session: ${state.customers.length} customers, ${state.journeys.length} journeys, ${state.marFlags.length} open flags.</div>
+        <button class="btn btn-secondary btn-sm" id="reload-all">↻ Reload all from Airtable</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">About</div>
+        <div style="font-size:13px;color:#64748b;line-height:1.7">
+          Operations Director · Client Onboarding · single-page GitHub Pages app · vanilla JS · Airtable as database.<br>
+          Schema spec: <code style="color:#1e293b;background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px">05_AIRTABLE_SCHEMA.md</code> in the repo.<br>
+          Source of truth for journey state is your Airtable base. This page is a read/write view.
+        </div>
+      </div>
+    </div>
+  `;
+
+  $('reset-conn').addEventListener('click', () => {
+    if (!confirm('Disconnect and reconnect? Your token will be cleared from this browser.')) return;
+    localStorage.removeItem(STORE.pat);
+    localStorage.removeItem(STORE.base);
+    showConnectScreen('Disconnected. Enter a fresh token.');
+  });
+  $('reload-all').addEventListener('click', async () => {
+    await loadAll();
+    renderSettings(container);
+  });
+}
+
+// ===========================================================================
+// CONNECT SCREEN
+// ===========================================================================
+function showConnectScreen(errorMsg) {
+  $('app').classList.add('hidden');
+  $('connect-screen').classList.remove('hidden');
+  const err = $('connect-error');
+  if (errorMsg) { err.textContent = errorMsg; err.classList.remove('hidden'); }
+  else { err.classList.add('hidden'); err.textContent = ''; }
+  const patIn = $('connect-pat');
+  const baseIn = $('connect-base');
+  patIn.value = getPat();
+  baseIn.value = getBase();
+  setTimeout(() => patIn.focus(), 60);
+}
+
+async function attemptConnect() {
+  const pat  = $('connect-pat').value.trim();
+  const base = $('connect-base').value.trim();
+  const btn  = $('connect-btn');
+  const err  = $('connect-error');
+  err.classList.add('hidden');
+  if (!pat || !base) {
+    err.textContent = 'Both Personal Access Token and Base ID are required.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (!base.startsWith('app')) {
+    err.textContent = 'Base ID should start with "app".';
+    err.classList.remove('hidden');
+    return;
+  }
+  btn.textContent = 'Connecting…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(TABLES.customers) + '?pageSize=1', {
+      headers: { 'Authorization': 'Bearer ' + pat }
+    });
+    if (res.status === 401 || res.status === 403) {
+      err.textContent = 'Token rejected. Check scopes and base access.';
+      err.classList.remove('hidden');
+      btn.textContent = 'Connect →'; btn.disabled = false;
+      return;
+    }
+    if (res.status === 404) {
+      err.textContent = 'Base or required table not found. Build the schema first.';
+      err.classList.remove('hidden');
+      btn.textContent = 'Connect →'; btn.disabled = false;
+      return;
+    }
+    if (!res.ok) {
+      err.textContent = 'HTTP ' + res.status + '. Try again.';
+      err.classList.remove('hidden');
+      btn.textContent = 'Connect →'; btn.disabled = false;
+      return;
+    }
+    localStorage.setItem(STORE.pat, pat);
+    localStorage.setItem(STORE.base, base);
+    $('connect-screen').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    await loadAll();
+    const last = localStorage.getItem(STORE.page) || 'dashboard';
+    goto(last);
+  } catch(e) {
+    err.textContent = 'Network error: ' + e.message;
+    err.classList.remove('hidden');
+    btn.textContent = 'Connect →'; btn.disabled = false;
+  }
+}
+
+// ===========================================================================
+// BOOT
+// ===========================================================================
+function boot() {
+  document.querySelectorAll('.nav-item').forEach(b => {
+    b.addEventListener('click', () => goto(b.dataset.page));
+  });
+  $('connect-btn').addEventListener('click', attemptConnect);
+  ['connect-pat','connect-base'].forEach(id => {
+    $(id).addEventListener('keydown', e => { if (e.key === 'Enter') attemptConnect(); });
+  });
+  $('sb-toggle').addEventListener('click', () => $('sb').classList.toggle('open'));
+
+  if (!getPat() || !getBase()) {
+    showConnectScreen();
+    return;
+  }
+  $('app').classList.remove('hidden');
+  loadAll().then(() => {
+    const last = localStorage.getItem(STORE.page) || 'dashboard';
+    goto(last);
+  }).catch(() => {});
+}
+
+boot();
+</script>
+</body>
+</html>
