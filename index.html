@@ -341,7 +341,8 @@ const TABLES = {
   activityLog:   '🎯 Onboarding Activity Log',
   marFlags:      '🎯 Onboarding MAR Flags',
   marRules:      '🎯 Onboarding MAR Rules',
-  heroWorkflows: '🎯 Onboarding Hero Workflows',
+  modules:       '🎯 Onboarding Modules',
+  moduleData:    '🎯 Onboarding Module Data',
   teamMembers:   'Team Members'
 };
 
@@ -460,7 +461,7 @@ const state = {
   byId: {
     clients: {},
     teamMembers: {},
-    heroWorkflows: {}
+    modules: {}
   },
   filters: {
     stage: '',
@@ -478,14 +479,14 @@ async function loadAll() {
       listAll(TABLES.marFlags, 'filterByFormula=' + encodeURIComponent('{Resolved At} = BLANK()')),
       listAll(TABLES.marRules),
       listAll(TABLES.teamMembers),
-      listAll(TABLES.heroWorkflows)
+      listAll(TABLES.modules)
     ]);
     state.clients  = clients;
     state.marFlags = marFlags;
     state.marRules = marRules;
     state.byId.clients       = Object.fromEntries(clients.map(r => [r.id, r]));
     state.byId.teamMembers   = Object.fromEntries(team.map(r => [r.id, r]));
-    state.byId.heroWorkflows = Object.fromEntries(heroWfs.map(r => [r.id, r]));
+    state.byId.modules = Object.fromEntries(heroWfs.map(r => [r.id, r]));
     setStatus('ok','Live');
     updateMarBadge();
   } catch (e) {
@@ -825,10 +826,11 @@ async function renderClientDetail(container, ctx) {
 
           ${fld['Pain Statement'] ? `
           <div class="card">
-            <div class="card-title">Activation Brief</div>
+            <div class="card-title">Priority Module &amp; Pain</div>
             <div style="font-size:13px;color:#475569;line-height:1.6">
+              ${(() => { const pm = fld['Priority Module']; const pmId = Array.isArray(pm) && pm.length ? pm[0].id || pm[0] : null; const pmRec = pmId ? state.byId.modules[pmId] : null; const pmName = pmRec ? pmRec.fields.Name : null; return pmName ? `<div style="margin-bottom:8px"><strong style="color:#1e293b">Module:</strong> ${esc(pmName)}</div>` : ''; })()}
               <div style="margin-bottom:8px"><strong style="color:#1e293b">Pain:</strong> ${esc(fld['Pain Statement'])}</div>
-              ${fld['Activation Event Name'] ? `<div><strong style="color:#1e293b">Event:</strong> <code style="background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:12px">${esc(fld['Activation Event Name'])}</code></div>` : ''}
+              ${fld['Activation Event Name'] ? `<div><strong style="color:#1e293b">Activation event:</strong> <code style="background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:12px">${esc(fld['Activation Event Name'])}</code></div>` : ''}
               ${fld['Target Saving GBP/month'] ? `<div style="margin-top:6px"><strong style="color:#1e293b">Target saving:</strong> £${esc(fld['Target Saving GBP/month'])}/month</div>` : ''}
             </div>
           </div>` : ''}
@@ -1031,8 +1033,9 @@ async function renderSettings(container) {
       <div class="card">
         <div class="card-title">About</div>
         <div style="font-size:13px;color:#64748b;line-height:1.7">
-          Operations Director · Client Onboarding · single-page GitHub Pages app · vanilla JS · Airtable as database.<br>
-          Schema spec: <code style="color:#1e293b;background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px">05_AIRTABLE_SCHEMA.md</code> in the repo.<br>
+          Operations Director · Client Onboarding · v2.0 · single-page GitHub Pages app · vanilla JS · Airtable as database.<br>
+          Tracks clients through 7 stages from payment to Day 90 activation. Built for the 10-module Operations OS model.<br>
+          Schema spec: <code style="color:#1e293b;background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px">05_AIRTABLE_SCHEMA.md</code> · Playbook: <code style="color:#1e293b;background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px">11_STAGE_PLAYBOOK.md</code> in the repo.<br>
           Source of truth for journey state is your Airtable base. This page is a read/write view.
         </div>
       </div>
