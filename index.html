@@ -885,7 +885,7 @@ async function renderClientDetail(container, ctx) {
               <label>Owner</label>
               <select id="owner-pick">
                 <option value="">— unassigned —</option>
-                ${Object.values(state.byId.teamMembers).filter(t => t.fields.Active !== false).map(t => `<option value="${esc(t.id)}"${(fld['Owner']||[]).some(o => (o.id||o)===t.id) ? ' selected' : ''}>${esc(t.fields.Name || '(no name)')}</option>`).join('')}
+                ${Object.values(state.byId.teamMembers).filter(t => (selVal(t.fields.Status) || '').toLowerCase() === 'active').map(t => `<option value="${esc(t.id)}"${(fld['Owner']||[]).some(o => (o.id||o)===t.id) ? ' selected' : ''}>${esc(t.fields.Name || '(no name)')}</option>`).join('')}
               </select>
             </div>
             <div class="field">
