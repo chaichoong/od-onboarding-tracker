@@ -368,6 +368,21 @@ const STORE = {
 
 const SEVERITY_ORDER = { critical:0, high:1, medium:2, low:3 };
 
+// Email templates surfaced in the Send Email action. Slug must match the
+// Template Slug used by Airtable Automation 11 / Postmark templates.
+const EMAIL_TEMPLATES = [
+  { slug: 'welcome',               label: 'Welcome (resend)' },
+  { slug: 'brief_confirmation',    label: 'Onboarding form received' },
+  { slug: 'mid_build_update',      label: 'Mid-build progress update' },
+  { slug: 'first_use_ready',       label: 'Priority Module is live' },
+  { slug: 'first_win_celebration', label: 'First Win celebration' },
+  { slug: 'module_live',           label: 'Another module is live (expansion)' },
+  { slug: 'activated_handover',    label: 'Activated handover (Day 90)' },
+  { slug: 'failure_day28',         label: 'Day 28 refund-offered' },
+  { slug: 'check_in_nudge',        label: 'Friendly check-in nudge' },
+  { slug: 'custom',                label: 'Custom (free-text body)' }
+];
+
 // ===========================================================================
 // HELPERS
 // ===========================================================================
@@ -444,11 +459,30 @@ async function updateRecord(tableName, id, fields) {
   });
 }
 
-async function createRecord(tableName, fields) {
+async function createRecord(tableName, fields, opts = {}) {
+  const body = { fields };
+  if (opts.typecast) body.typecast = true;
   return atFetch('/' + encodeURIComponent(tableName), {
     method: 'POST',
-    body: JSON.stringify({ fields })
+    body: JSON.stringify(body)
   });
+}
+
+// Queue an email by writing an Activity Log row. Airtable Automation 11 picks it
+// up, renders via Postmark, and updates Touchpoint Status. Using typecast lets
+// Airtable add the "queued" option to Touchpoint Status on first use.
+async function queueEmail(clientId, templateSlug, templateLabel, payloadObj) {
+  return createRecord(TABLES.activityLog, {
+    'Description':       'Email: ' + templateLabel,
+    'Client':            [clientId],
+    'Type':              'touchpoint',
+    'Channel':           'email',
+    'Template Slug':     templateSlug,
+    'Touchpoint Status': 'queued',
+    'Occurred At':       new Date().toISOString(),
+    'Actor':             'dashboard',
+    'Payload':           payloadObj ? JSON.stringify(payloadObj) : ''
+  }, { typecast: true });
 }
 
 // ===========================================================================
@@ -795,7 +829,7 @@ async function renderClientDetail(container, ctx) {
 
         <aside>
           <div class="card">
-            <div class="card-title">Manual Actions</div>
+            <div class="card-title">Stage Actions</div>
             <div class="field">
               <label>Move to stage</label>
               <select id="stage-pick">${stageOpts}</select>
@@ -806,9 +840,69 @@ async function renderClientDetail(container, ctx) {
             </div>
             <button class="btn btn-primary" id="stage-go" style="width:100%;justify-content:center">Apply stage change</button>
             <div style="height:10px"></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-secondary btn-sm" id="mark-config" style="flex:1;justify-content:center" title="Ticks Configuration Complete → fires Automation 03 → advances to first_use">Config done ✓</button>
+              <button class="btn btn-secondary btn-sm" id="fire-activation" style="flex:1;justify-content:center" title="Sets Activation Event Fired At → fires Automation 08 → advances to first_win">Fire Activation</button>
+            </div>
+            <div style="height:6px"></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-success btn-sm" id="mark-activated" style="flex:1;justify-content:center">Mark Activated</button>
+              <button class="btn btn-danger btn-sm" id="mark-failed" style="flex:1;justify-content:center">Mark Failed</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Send Email</div>
+            <div class="field">
+              <label>Template</label>
+              <select id="email-template">
+                <option value="">— pick one —</option>
+                ${EMAIL_TEMPLATES.map(t => `<option value="${esc(t.slug)}">${esc(t.label)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label>Personal note (optional, appended to template)</label>
+              <textarea id="email-note" placeholder="Anything you want to add for this client specifically..."></textarea>
+            </div>
+            <button class="btn btn-primary" id="send-email" style="width:100%;justify-content:center">Queue email</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Send Module Data Form</div>
+            <div class="field">
+              <label>Module</label>
+              <select id="module-form-pick">
+                <option value="">— pick a module —</option>
+                ${Object.values(state.byId.modules).filter(m => m.fields.Active !== false).map(m => `<option value="${esc(m.id)}">${esc(m.fields.Name || m.fields.Slug || '(unnamed)')}</option>`).join('')}
+              </select>
+            </div>
+            <button class="btn btn-primary" id="send-module-form" style="width:100%;justify-content:center">Send mini-form to client</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Assignment</div>
+            <div class="field">
+              <label>Owner</label>
+              <select id="owner-pick">
+                <option value="">— unassigned —</option>
+                ${Object.values(state.byId.teamMembers).filter(t => t.fields.Active !== false).map(t => `<option value="${esc(t.id)}"${(fld['Owner']||[]).some(o => (o.id||o)===t.id) ? ' selected' : ''}>${esc(t.fields.Name || '(no name)')}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label>Priority Module</label>
+              <select id="priority-pick">
+                <option value="">— unset —</option>
+                ${Object.values(state.byId.modules).filter(m => m.fields.Active !== false).map(m => `<option value="${esc(m.id)}"${(fld['Priority Module']||[]).some(p => (p.id||p)===m.id) ? ' selected' : ''}>${esc(m.fields.Name || m.fields.Slug)}</option>`).join('')}
+              </select>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="save-assignment" style="width:100%;justify-content:center">Save assignment</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Escalation &amp; Notes</div>
+            <button class="btn btn-danger btn-sm" id="escalate" style="width:100%;justify-content:center">Escalate to Kevin</button>
+            <div style="height:6px"></div>
             <button class="btn btn-secondary btn-sm" id="add-note" style="width:100%;justify-content:center">Add note to timeline</button>
-            <div style="height:10px"></div>
-            <button class="btn btn-secondary btn-sm" id="escalate" style="width:100%;justify-content:center">Escalate to Kevin</button>
           </div>
 
           <div class="card">
@@ -899,19 +993,177 @@ async function renderClientDetail(container, ctx) {
   });
 
   $('escalate').addEventListener('click', async () => {
-    const reason = prompt('What is the escalation about?');
+    const reason = prompt('Escalate to Kevin. What is this about? (Be brief.)');
     if (!reason) return;
     try {
       await createRecord(TABLES.activityLog, {
         'Client':      [client.id],
-        'Type':        'note',
+        'Type':        'mar',
         'Occurred At': new Date().toISOString(),
         'Description': 'ESCALATED TO KEVIN: ' + reason,
-        'Actor':       'app'
+        'Trigger Kind':'manual',
+        'Actor':       'dashboard'
       });
-      alert('Escalation logged. (Wire an Airtable Automation to watch for "ESCALATED TO KEVIN" in Activity Log and send a Slack DM.)');
+      alert('Escalation logged. Airtable Automation watches Activity Log for "ESCALATED TO KEVIN" and posts to Slack #cs-mar-critical.');
       await renderClientDetail(container, { clientId });
     } catch(e) { alert('Failed: ' + e.message); }
+  });
+
+  // ---- Mark Configuration Complete (fires Automation 03) ----
+  $('mark-config').addEventListener('click', async () => {
+    if (!confirm('Mark Configuration Complete? This fires Automation 03 → "your priority module is live" email → stage advances to first_use.')) return;
+    const b = $('mark-config'); b.disabled = true; b.textContent = '…';
+    try {
+      await updateRecord(TABLES.clients, client.id, { 'Configuration Complete': true });
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'note',
+        'Occurred At':    new Date().toISOString(),
+        'Description':    'Configuration Complete ticked from dashboard',
+        'Trigger Kind':   'manual',
+        'Actor':          'dashboard'
+      });
+      await loadAll();
+      await renderClientDetail(container, { clientId });
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Config done ✓'; }
+  });
+
+  // ---- Fire Activation Event (fires Automation 08) ----
+  $('fire-activation').addEventListener('click', async () => {
+    if (!confirm('Fire Activation Event for the Priority Module? This sets Activation Event Fired At = now → Automation 08 → celebration email → stage = first_win.')) return;
+    const b = $('fire-activation'); b.disabled = true; b.textContent = '…';
+    try {
+      const now = new Date().toISOString();
+      await updateRecord(TABLES.clients, client.id, { 'Activation Event Fired At': now });
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'telemetry',
+        'Occurred At':    now,
+        'Description':    'Activation Event fired manually from dashboard',
+        'Event Name':     fld['Activation Event Name'] || 'activation_event_fired',
+        'Trigger Kind':   'manual',
+        'Actor':          'dashboard'
+      });
+      await loadAll();
+      await renderClientDetail(container, { clientId });
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Fire Activation'; }
+  });
+
+  // ---- Mark Activated (terminal positive) ----
+  $('mark-activated').addEventListener('click', async () => {
+    if (!confirm('Mark this client as Activated? Stage → activated, Journey Status → activated, Activated At → now. This is terminal — only do this when all 10 modules are live and the Definition of Activated is met.')) return;
+    const b = $('mark-activated'); b.disabled = true; b.textContent = '…';
+    try {
+      const now = new Date().toISOString();
+      await updateRecord(TABLES.clients, client.id, {
+        'Current Stage':     'activated',
+        'Stage Entered At':  now,
+        'Activated At':      now,
+        'Journey Status':    'activated'
+      });
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'stage_transition',
+        'Occurred At':    now,
+        'Description':    stage + ' → activated',
+        'From Stage':     stage,
+        'To Stage':       'activated',
+        'Trigger Kind':   'manual',
+        'Trigger Detail': 'Marked Activated from dashboard',
+        'Actor':          'dashboard'
+      });
+      await loadAll();
+      await renderClientDetail(container, { clientId });
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Mark Activated'; }
+  });
+
+  // ---- Mark Failed (terminal negative) ----
+  $('mark-failed').addEventListener('click', async () => {
+    const reason = prompt('Mark this client as Failed. Reason? (required, audited)');
+    if (!reason) return;
+    const b = $('mark-failed'); b.disabled = true; b.textContent = '…';
+    try {
+      const now = new Date().toISOString();
+      await updateRecord(TABLES.clients, client.id, {
+        'Journey Status':         'failed',
+        'Failure Protocol State': 'day35',
+        'Churned At':             now
+      });
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'mar',
+        'Occurred At':    now,
+        'Description':    'Marked Failed from dashboard',
+        'Trigger Kind':   'manual',
+        'Trigger Detail': reason,
+        'Actor':          'dashboard'
+      });
+      await loadAll();
+      await renderClientDetail(container, { clientId });
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Mark Failed'; }
+  });
+
+  // ---- Queue email ----
+  $('send-email').addEventListener('click', async () => {
+    const slug = $('email-template').value;
+    if (!slug) { alert('Pick an email template.'); return; }
+    const tpl = EMAIL_TEMPLATES.find(t => t.slug === slug);
+    const note = $('email-note').value.trim();
+    if (slug === 'custom' && !note) { alert('Custom emails need body text in the Personal note field.'); return; }
+    if (!confirm('Queue "' + tpl.label + '" to ' + (fld.Email || 'this client') + '?')) return;
+    const b = $('send-email'); b.disabled = true; b.textContent = 'Queueing…';
+    try {
+      await queueEmail(client.id, slug, tpl.label, { personal_note: note || null });
+      $('email-note').value = '';
+      $('email-template').value = '';
+      await renderClientDetail(container, { clientId });
+      alert('Queued. Automation 11 sends it via Postmark within seconds.');
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Queue email'; }
+  });
+
+  // ---- Send module data mini-form ----
+  $('send-module-form').addEventListener('click', async () => {
+    const moduleRecId = $('module-form-pick').value;
+    if (!moduleRecId) { alert('Pick a module first.'); return; }
+    const mod = state.byId.modules[moduleRecId];
+    const modName = mod ? (mod.fields.Name || mod.fields.Slug) : '(module)';
+    if (!confirm('Send the "' + modName + '" mini-form to ' + (fld.Email || 'this client') + '?')) return;
+    const b = $('send-module-form'); b.disabled = true; b.textContent = '…';
+    try {
+      await queueEmail(client.id, 'module_data_request', 'Module data request: ' + modName, { module_id: moduleRecId, module_name: modName });
+      $('module-form-pick').value = '';
+      await renderClientDetail(container, { clientId });
+      alert('Queued. Automation 11 sends the mini-form link via Postmark.');
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Send mini-form to client'; }
+  });
+
+  // ---- Save assignment (Owner + Priority Module) ----
+  $('save-assignment').addEventListener('click', async () => {
+    const ownerId    = $('owner-pick').value;
+    const priorityId = $('priority-pick').value;
+    const b = $('save-assignment'); b.disabled = true; b.textContent = 'Saving…';
+    try {
+      const fields = {};
+      fields['Owner']           = ownerId    ? [ownerId]    : [];
+      fields['Priority Module'] = priorityId ? [priorityId] : [];
+      await updateRecord(TABLES.clients, client.id, fields);
+      const moduleName = priorityId && state.byId.modules[priorityId]
+        ? (state.byId.modules[priorityId].fields.Name || state.byId.modules[priorityId].fields.Slug)
+        : 'unset';
+      const ownerName = ownerId && state.byId.teamMembers[ownerId]
+        ? state.byId.teamMembers[ownerId].fields.Name
+        : 'unset';
+      await createRecord(TABLES.activityLog, {
+        'Client':         [client.id],
+        'Type':           'note',
+        'Occurred At':    new Date().toISOString(),
+        'Description':    'Assignment updated · Owner: ' + ownerName + ' · Priority Module: ' + moduleName,
+        'Trigger Kind':   'manual',
+        'Actor':          'dashboard'
+      });
+      await loadAll();
+      await renderClientDetail(container, { clientId });
+    } catch(e){ alert('Failed: ' + e.message); b.disabled = false; b.textContent = 'Save assignment'; }
   });
 }
 
